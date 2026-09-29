@@ -1,7 +1,7 @@
 """Validate all datasets of one run in dependency order (FR-020 – FR-025).
 
 Parents are validated first so child referential rules can use the parents' valid
-records of this batch, plus keys already present in ``processed/`` from earlier runs.
+records of this batch, plus keys already present in ``processed/`` from earlier run dates.
 All outputs and reports are written before the quality gate is applied, so a failing
 run can still be investigated.
 """
@@ -19,8 +19,9 @@ from src.common.config import Settings
 from src.common.constants import BUSINESS_KEYS, DATASETS
 from src.common.exceptions import SourceFileError
 from src.common.logging_config import log_context
-from src.common.paths import Zone, raw_file_path, spark_uri
+from src.common.paths import raw_file_path, spark_uri
 from src.common.storage import Storage
+from src.transformation.processed_reader import read_processed_keys
 from src.validation.quarantine import write_quarantine, write_validated
 from src.validation.report import build_report, enforce_threshold, log_report, write_report
 from src.validation.rule_catalog import parent_datasets
@@ -30,27 +31,17 @@ from src.validation.validator import ValidationOutcome, read_raw, validate
 logger = logging.getLogger(__name__)
 
 
-def read_processed_keys(
-    spark: SparkSession, storage: Storage, settings: Settings, dataset: str
-) -> DataFrame | None:
-    """Business keys of ``dataset`` already in ``processed/`` (all partitions), if any."""
-    prefix = f"{Zone.PROCESSED}/{dataset}/"
-    if not any(key.endswith(".parquet") for key in storage.list(prefix)):
-        return None
-    key_column = BUSINESS_KEYS[dataset]
-    return spark.read.parquet(spark_uri(prefix, settings)).select(key_column)
-
-
 def _parent_keys(
     spark: SparkSession,
     storage: Storage,
     settings: Settings,
     parent: str,
     batch: ValidationOutcome | None,
+    run_date: date,
 ) -> DataFrame:
     key_column = BUSINESS_KEYS[parent]
     frames = [batch.valid.select(key_column)] if batch else []
-    processed = read_processed_keys(spark, storage, settings, parent)
+    processed = read_processed_keys(spark, storage, settings, parent, before=run_date)
     if processed is not None:
         frames.append(processed)
     if not frames:
@@ -80,7 +71,7 @@ def validate_dataset(
     context = RuleContext(
         run_date=run_date,
         parent_keys={
-            parent: _parent_keys(spark, storage, settings, parent, parents.get(parent))
+            parent: _parent_keys(spark, storage, settings, parent, parents.get(parent), run_date)
             for parent in parent_datasets(dataset)
         },
     )
