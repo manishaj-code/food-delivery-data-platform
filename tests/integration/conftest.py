@@ -7,6 +7,8 @@ environment (``.env``). Tests are skipped with a clear message when it is not re
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
@@ -47,19 +49,27 @@ def _drop_schema(conn: Any, schema: str) -> None:
     conn.commit()
 
 
-@pytest.fixture(scope="module")
-def warehouse(request: pytest.FixtureRequest) -> Warehouse:
-    """Initialised warehouse in schema ``test_<module>``, dropped afterwards."""
-    module = request.module.__name__.rsplit(".", 1)[-1].removeprefix("test_")
-    settings = load_settings(
-        {**os.environ, "WAREHOUSE_TYPE": "postgres", "REDSHIFT_SCHEMA": f"test_{module}"}
-    )
+@contextmanager
+def fresh_warehouse(schema: str) -> Iterator[Warehouse]:
+    """Initialised warehouse in ``schema``, dropped afterwards (skips if Postgres is down)."""
+    env = {**os.environ, "WAREHOUSE_TYPE": "postgres", "REDSHIFT_SCHEMA": schema}
+    settings = load_settings(env)
     try:
         conn = get_connection(settings)
     except (WarehouseConnectionError, ConfigError) as exc:
         pytest.skip(f"PostgreSQL warehouse not reachable ({exc}); start it with docker compose")
-    _drop_schema(conn, settings.redshift_schema)
-    init_warehouse(settings, conn)
-    yield Warehouse(settings, conn)
-    _drop_schema(conn, settings.redshift_schema)
-    conn.close()
+    try:
+        _drop_schema(conn, schema)
+        init_warehouse(settings, conn)
+        yield Warehouse(settings, conn)
+        _drop_schema(conn, schema)
+    finally:
+        conn.close()
+
+
+@pytest.fixture(scope="module")
+def warehouse(request: pytest.FixtureRequest) -> Iterator[Warehouse]:
+    """Initialised warehouse in schema ``test_<module>``, dropped afterwards."""
+    module = request.module.__name__.rsplit(".", 1)[-1].removeprefix("test_")
+    with fresh_warehouse(f"test_{module}") as warehouse:
+        yield warehouse

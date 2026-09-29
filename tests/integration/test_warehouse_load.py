@@ -33,12 +33,15 @@ def loaded(warehouse: Warehouse, validated_lake: ValidatedLake):
 
 def test_ddl_is_idempotent(warehouse: Warehouse) -> None:
     assert init_warehouse(warehouse.settings, warehouse.conn) == 0
-    tables = warehouse.query(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = %s",
-        (warehouse.schema,),
+    objects = dict(
+        warehouse.query(
+            "SELECT table_type, COUNT(*) FROM information_schema.tables "
+            "WHERE table_schema = %s GROUP BY table_type",
+            (warehouse.schema,),
+        )
     )
-    # 4 dimensions + 3 facts + 7 staging tables + audit
-    assert len(tables) == 15
+    # 4 dimensions + 3 facts + 7 staging tables + audit; 6 Power BI views
+    assert objects == {"BASE TABLE": 15, "VIEW": 6}
 
 
 def test_dim_date_covers_2025_to_2027_without_gaps(warehouse: Warehouse) -> None:

@@ -1,7 +1,7 @@
-"""Create the warehouse objects and populate ``dim_date`` (FR-050, FR-051, FR-056).
+"""Create the warehouse objects and populate ``dim_date`` (FR-050, FR-051, FR-056, FR-061).
 
-Idempotent: every DDL statement is ``CREATE … IF NOT EXISTS`` and ``dim_date`` only
-receives missing dates, so running it again changes nothing.
+Idempotent: every table is ``CREATE … IF NOT EXISTS``, ``dim_date`` only receives missing
+dates, and the Power BI views are ``CREATE OR REPLACE``d, so running it again changes nothing.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from datetime import date
 from typing import Any
 
 from src.common.config import Settings
+from src.warehouse.analytics import create_views
 from src.warehouse.connection import warehouse_connection
 from src.warehouse.sql_runner import run_sql_file, transaction
 
@@ -42,13 +43,14 @@ def populate_dim_date(
 
 
 def init_warehouse(settings: Settings, conn: Any = None) -> int:
-    """Run the dialect's DDL and fill ``dim_date``; returns the dim_date rows added."""
+    """Run the DDL, fill ``dim_date``, and create the views; returns the dim_date rows added."""
     schema = settings.redshift_schema
     with warehouse_connection(settings, conn) as connection:
         for name in DDL_FILES:
             with transaction(connection):
                 run_sql_file(connection, f"ddl/{settings.warehouse_type}/{name}", schema)
         added = populate_dim_date(connection, schema)
+        create_views(connection, schema)
     logger.info(
         "Warehouse initialised (warehouse_type=%s, schema=%s, dim_date rows added=%d)",
         settings.warehouse_type,
