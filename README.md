@@ -2,7 +2,7 @@
 
 > An automated end-to-end data engineering platform for processing food delivery orders, customers, restaurants, payments, and delivery data using Python, PySpark, AWS S3, Amazon Redshift, Airflow, Docker, Terraform, and GitHub Actions.
 
-**Status:** Phase 6 of 15 complete — synthetic data, raw ingestion, local/S3 lake storage, PySpark data quality and transformations, verified processed Parquet layer with manifests. The full README is written in Phase 15.
+**Status:** Phase 7 of 15 complete — synthetic data, raw ingestion, local/S3 lake storage, PySpark data quality and transformations, verified processed Parquet layer, star-schema warehouse (Redshift DDL + local PostgreSQL) with idempotent upserts and post-load checks. The full README is written in Phase 15.
 
 ## Documentation
 
@@ -25,7 +25,7 @@ flowchart LR
 Requirements: Docker Desktop (WSL2 backend on Windows).
 
 ```bash
-cp .env.example .env                       # optional in Phase 1; never commit .env
+cp .env.example .env                       # required (local warehouse password); never commit .env
 docker compose build pipeline
 
 # Generate the full historical dataset (~100k orders) into data/generated/

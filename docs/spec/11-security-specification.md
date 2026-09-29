@@ -64,6 +64,7 @@ All runtime configuration comes from environment variables (FR-131). Required va
 | DQ_MIN_QUALITY_SCORE | No | `95.0` |
 | SPARK_DRIVER_MEMORY | No | `1g` |
 | METRICS_ENABLED | No | `false` |
+| POSTGRES_HOST_PORT | No | `5433` — local warehouse port on `127.0.0.1` for SQL clients |
 | LOG_LEVEL | No | `INFO` |
 | AIRFLOW admin/Fernet vars | **Yes** | local `.env` only |
 
