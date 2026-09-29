@@ -1,0 +1,5 @@
+customer_id,customer_name,email,city,signup_date
+C50001,Priya Menon,priya.menon50001@example.com,Hyderabad,2026-09-01
+C50002,Neha Desai,neha.desai50002@example.com,Ahmedabad,2026-09-01
+C50003,Rahul Desai,rahul.desai50003@example.com,Kolkata,2026-09-01
+C10083,Meera Nair,updated1.meera.nair10083@example.com,Mumbai,2025-08-03

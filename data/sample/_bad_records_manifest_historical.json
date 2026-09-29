@@ -1,0 +1,31 @@
+{
+  "label": "historical",
+  "profile": "sample",
+  "seed": 42,
+  "row_counts": {
+    "customers": 204,
+    "restaurants": 52,
+    "delivery_partners": 30,
+    "orders": 406,
+    "payments": 402,
+    "delivery": 401
+  },
+  "expected_failures": {
+    "DQ-CUS-001": 1,
+    "DQ-CUS-002": 1,
+    "DQ-CUS-003": 1,
+    "DQ-CUS-004": 1,
+    "DQ-DEL-005": 1,
+    "DQ-ORD-002": 1,
+    "DQ-ORD-003": 1,
+    "DQ-ORD-005": 1,
+    "DQ-ORD-006": 1,
+    "DQ-ORD-007": 1,
+    "DQ-ORD-008": 1,
+    "DQ-PAY-004": 1,
+    "DQ-PAY-005": 1,
+    "DQ-RES-002": 1,
+    "DQ-RES-003": 1
+  },
+  "note": "expected_failures are minimums; cascading referential failures may add more"
+}

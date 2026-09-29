@@ -1,0 +1,53 @@
+restaurant_id,restaurant_name,city,cuisine,rating
+R1001,Green Bistro,Bengaluru,South Indian,4.1
+R1002,Urban Cafe,Ahmedabad,Continental,4.1
+R1003,Little House,Kolkata,Mughlai,4.6
+R1004,Masala Grill,Hyderabad,Mughlai,4.9
+R1005,Spice Dhaba,Mumbai,Italian,2.5
+R1006,Little Bistro,Bengaluru,South Indian,2.6
+R1007,Coastal Table,Pune,South Indian,4.6
+R1008,Urban Cafe,Delhi,Fast Food,4.6
+R1009,Green Table,Bengaluru,Continental,4.0
+R1010,Golden Cafe,Ahmedabad,Chinese,
+R1011,Tandoor Cafe,Delhi,Italian,2.8
+R1012,Urban Point,Bengaluru,Indian,3.4
+R1013,Urban Cafe,Pune,South Indian,4.8
+R1014,Spice Corner,Delhi,Continental,3.2
+R1015,Coastal Bistro,Delhi,Continental,4.6
+R1016,Royal Grill,Kolkata,Fast Food,3.5
+R1017,Coastal Grill,Chennai,Italian,3.8
+R1018,Little Point,Delhi,Desserts,4.8
+R1019,Urban Kitchen,Kolkata,Continental,3.3
+R1020,Green Cafe,Ahmedabad,Continental,4.7
+R1021,Urban Corner,Bengaluru,Italian,4.8
+R1022,Coastal Corner,Hyderabad,Chinese,3.2
+R1023,Green Cafe,Chennai,Desserts,3.0
+R1024,Golden Point,Hyderabad,Mughlai,3.3
+R1025,Coastal Table,Delhi,South Indian,3.8
+R1026,Royal Point,Delhi,South Indian,3.1
+R1027,Coastal Bistro,Chennai,South Indian,3.6
+R1028,Spice Cafe,Bengaluru,Mughlai,4.9
+R1029,Royal Express,Mumbai,South Indian,5.0
+R1030,Green Bistro,Bengaluru,Fast Food,4.2
+R1031,Coastal Grill,Chennai,Indian,3.8
+R1032,Masala Point,Ahmedabad,Desserts,4.7
+R1033,Green Point,Mumbai,Indian,5.0
+R1034,Green Cafe,Chennai,Desserts,4.2
+R1035,Urban Grill,Mumbai,Chinese,3.4
+R1036,Little Point,Chennai,Continental,3.8
+R1037,Blue Table,Hyderabad,Fast Food,4.9
+R1038,Spice Kitchen,Hyderabad,Indian,3.0
+R1039,Masala Kitchen,Hyderabad,South Indian,2.7
+R1040,Coastal Dhaba,Hyderabad,Italian,3.0
+R1041,Golden Cafe,Pune,Chinese,3.3
+R1042,Coastal Cafe,Kolkata,South Indian,3.5
+R1043,Spice Express,Chennai,Desserts,3.7
+R1044,Urban Point,Kolkata,Continental,3.7
+R1045,Urban Kitchen,Delhi,Italian,2.8
+R1046,Golden Dhaba,Pune,Continental,3.2
+R1047,Tandoor Bistro,Delhi,Chinese,3.6
+R1048,Spice Grill,Hyderabad,Mughlai,5.0
+R1049,Royal House,Delhi,Mughlai,2.6
+R1050,Golden Express,Hyderabad,Chinese,3.4
+R1024,Golden Point,Hyderabad,Mughlai,3.3
+R9001,Urban Cafe,Ahmedabad,Continental,7.5

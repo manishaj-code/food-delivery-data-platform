@@ -1,0 +1,19 @@
+{
+  "label": "2026-09-02",
+  "profile": "sample",
+  "seed": 42,
+  "row_counts": {
+    "customers": 4,
+    "restaurants": 1,
+    "delivery_partners": 0,
+    "orders": 49,
+    "payments": 49,
+    "delivery": 49
+  },
+  "expected_failures": {
+    "DQ-DEL-005": 1,
+    "DQ-ORD-006": 1,
+    "DQ-PAY-004": 1
+  },
+  "note": "expected_failures are minimums; cascading referential failures may add more"
+}
