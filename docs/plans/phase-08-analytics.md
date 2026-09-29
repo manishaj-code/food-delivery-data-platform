@@ -43,6 +43,14 @@ tests/integration/fixtures/analytics_fixture.sql
 tests/integration/test_analytics_sql.py
 ```
 
+**As implemented:**
+
+- `src/warehouse/analytics.py`: `VIEWS`, `QUERIES` (discovered from `sql/analytics/NN_*.sql`; only these names can run), `create_views`, `run_query(conn, schema, name) -> QueryResult(columns, rows)`, `format_result`, and a demo entry point `python -m src.warehouse.analytics --query 08_top_restaurants | --all` until the Phase 9 CLI wraps it.
+- The fixture is SQL (`tests/integration/fixtures/analytics_fixture.sql`: 5 customers, 4 restaurants, 9 orders, 10 payments, 8 deliveries over 2026-09-01/02) with expected values worked out in the test docstrings. It covers a failed-then-successful payment, a refunded payment, a payment made the day after its order, a 45-minute delivery (not late), a failed and an open delivery, and a restaurant and a customer without orders.
+- WQ-005 now reads `vw_daily_revenue` instead of repeating the AOV SQL.
+- `tests/integration/conftest.py` gained `fresh_warehouse(schema)` so the analytics tests use one schema for the fixture and another for the generated sample data.
+- Extra tests: `tests/unit/test_analytics_runner.py` (15 spec query names, every file renders, threshold in one view only, unknown names rejected, output formatting, entry point); the views sum back to the fact tables on generated data (no join fan-out).
+
 ## Files To Modify
 
 `src/warehouse/init_warehouse.py` (create views), `src/cli.py` if already present (else Phase 9).

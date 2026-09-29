@@ -260,6 +260,15 @@ SQL templates use named parameters (`%(run_date)s`, `{schema}` placeholders fill
 
 Metric logic follows spec 02. Views are plain (non-materialised) views; materialised views are a future improvement if performance requires.
 
+Implementation notes:
+
+- `init-warehouse` creates the views after the tables (`CREATE OR REPLACE VIEW`, `sql/analytics/views/`). Changing a view's column names or types later requires dropping it first (PostgreSQL only lets `OR REPLACE` add columns at the end).
+- Dimension views include members without activity: restaurants and customers with no orders show 0 orders/revenue and NULL rates.
+- Orders, successful payments (pre-aggregated per `order_id`), and deliveries are aggregated separately before joining, so additive columns (orders, revenue, spend) sum back to the fact tables.
+- One definition per metric: the analytical queries select from the views where a view encodes the metric; the 45-minute late threshold appears only in `vw_delivery_performance`; WQ-005 compares PySpark AOV with `vw_daily_revenue`. Query 10 (average delivery time) reads `fact_delivery` directly, because averaging rounded daily averages would be wrong.
+- Queries that report "overall and per day/city" return one `overall` row (NULL date/city) followed by the detail rows.
+- Peak hours use `EXTRACT(HOUR FROM order_timestamp)` on UTC timestamps (spec 02 §5).
+
 ## 9. Access
 
 | Principal | Access |
