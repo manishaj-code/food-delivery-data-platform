@@ -1,0 +1,2 @@
+# Runtime dependencies (pinned). Further packages are added in the phase that needs them.
+pyspark==4.2.0

@@ -1,0 +1,18 @@
+# Local development environment — Phase 1 (pipeline container only).
+# Postgres is added in Phase 7, Airflow in Phase 9; finalised in Phase 10.
+name: food-delivery
+
+services:
+  pipeline:
+    build: .
+    image: food-delivery-pipeline:dev
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      LOCAL_LAKE_PATH: /opt/project/lake
+      SOURCE_DATA_PATH: /opt/project/data/generated
+    volumes:
+      - .:/opt/project
+    working_dir: /opt/project
+    mem_limit: 2g

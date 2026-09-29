@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+!.env.example
+lake/
+data/generated/
+terraform/.terraform
+*.tfstate*
+*.tfvars
+**/__pycache__
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+docs/

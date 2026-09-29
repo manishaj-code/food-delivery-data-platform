@@ -1,0 +1,35 @@
+[project]
+name = "food-delivery-data-platform"
+version = "0.1.0"
+description = "End-to-end food delivery data engineering platform: Python, PySpark, S3, Redshift, Airflow, Docker, Terraform, GitHub Actions."
+requires-python = ">=3.12"
+readme = "README.md"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["data", "lake", "docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "T20"]
+
+[tool.ruff.lint.per-file-ignores]
+# CLI scripts may print usage/results to the terminal
+"scripts/*" = ["T20"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+    "unit: fast tests without external services",
+    "spark: tests that start a local SparkSession",
+    "integration: tests that need PostgreSQL or several components",
+    "slow: long-running tests (e.g. full-volume data generation)",
+    "aws: tests against real AWS (manual only)",
+]
+filterwarnings = ["ignore::DeprecationWarning:pyspark.*"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true

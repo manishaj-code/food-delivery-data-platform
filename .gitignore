@@ -1,0 +1,47 @@
+# Secrets and local configuration — never commit
+.env
+.env.*
+!.env.example
+*.pem
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+tfplan
+.terraform.lock.hcl.bak
+
+# Data and lake outputs (generated locally)
+lake/
+data/generated/*
+!data/generated/.gitkeep
+
+# Logs
+logs/
+airflow/logs/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Spark
+spark-warehouse/
+metastore_db/
+derby.log
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
