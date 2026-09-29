@@ -2,7 +2,7 @@
 
 > An automated end-to-end data engineering platform for processing food delivery orders, customers, restaurants, payments, and delivery data using Python, PySpark, AWS S3, Amazon Redshift, Airflow, Docker, Terraform, and GitHub Actions.
 
-**Status:** Phase 1 of 15 complete — project foundation and synthetic data. The full README is written in Phase 15.
+**Status:** Phase 2 of 15 complete — synthetic data and raw ingestion (local lake). The full README is written in Phase 15.
 
 ## Documentation
 

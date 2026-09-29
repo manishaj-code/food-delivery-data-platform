@@ -19,7 +19,7 @@ Phase 1 complete (config, logging, exceptions, constants, generated + sample dat
 ## Tasks
 
 ### Task 1 — Storage interface + local backend
-`src/common/storage.py`: `Storage` protocol (`write_text/bytes`, `read_bytes`, `exists`, `list`, `delete_prefix`, `uri_for`), `LocalStorage` rooted at `LOCAL_LAKE_PATH`, `get_storage(settings)` factory. (S3 backend added in Phase 3.)
+`src/common/storage.py`: `Storage` protocol (`write_text/bytes`, `write_file` (upload a staged local file), `read_bytes`, `exists`, `list`, `delete_prefix`, `uri_for`), `LocalStorage` rooted at `LOCAL_LAKE_PATH`, `get_storage(settings)` factory. (S3 backend added in Phase 3.)
 
 ### Task 2 — Source interface
 `src/common/sources.py`: `Source` protocol (`describe()`, `read_rows()` → header + row iterator), `CsvFileSource` resolving `<dataset>_historical.csv` or `<dataset>_<date>.csv` under `SOURCE_DATA_PATH`.
@@ -30,8 +30,8 @@ Phase 1 complete (config, logging, exceptions, constants, generated + sample dat
 ### Task 4 — Dataset modules
 `customers_ingestion.py`, `restaurants_ingestion.py`, `delivery_partners_ingestion.py`, `orders_ingestion.py`, `payments_ingestion.py`, `delivery_ingestion.py`: each defines a small subclass/config using constants. `src/ingestion/__init__.py` exposes a registry `INGESTORS = {dataset: class}`.
 
-### Task 5 — Temporary raw path helper
-Minimal raw path function (moved into `src/common/paths.py` in Phase 3).
+### Task 5 — Raw path helper
+`src/common/paths.py` with `partition_path` and `raw_file_path` (created here rather than as a temporary helper; Phase 3 adds the other zones).
 
 ### Task 6 — Tests, run, commit
 `feat: implement raw data ingestion`.
