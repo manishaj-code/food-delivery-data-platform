@@ -1,7 +1,44 @@
-# Local development environment: pipeline container + local PostgreSQL warehouse.
-# Airflow is added in Phase 9; finalised in Phase 10.
+# Local development environment: pipeline container, local PostgreSQL warehouse (+ Airflow
+# metadata database), and Airflow 3. Finalised in Phase 10.
 # Credentials come from the untracked .env (copy .env.example); nothing secret lives here.
 name: food-delivery
+
+x-project-env: &project-env
+  LOCAL_LAKE_PATH: /opt/project/lake
+  SOURCE_DATA_PATH: /opt/project/data/generated
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: docker/airflow/Dockerfile
+  image: food-delivery-airflow:dev
+  # Same uid as the pipeline image's app user, so both containers can write the mounted
+  # lake/ and data/ folders; gid 0 lets any uid use the Airflow image's files.
+  user: "${AIRFLOW_UID:-1000}:0"
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    <<: *project-env
+    PYTHONPATH: /opt/project
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/project/airflow/dags
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    # One task at a time: Spark and Airflow share an 8 GB host (TR-03).
+    AIRFLOW__CORE__PARALLELISM: "1"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:?Set AIRFLOW_DB_PASSWORD in .env}@postgres:5432/airflow"
+    AIRFLOW__CORE__FERNET_KEY: "${AIRFLOW_FERNET_KEY:?Set AIRFLOW_FERNET_KEY in .env}"
+    AIRFLOW__API_AUTH__JWT_SECRET: "${AIRFLOW_JWT_SECRET:?Set AIRFLOW_JWT_SECRET in .env}"
+    AIRFLOW__API__SECRET_KEY: "${AIRFLOW_API_SECRET_KEY:?Set AIRFLOW_API_SECRET_KEY in .env}"
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "${AIRFLOW_ADMIN_USERNAME:-admin}:admin"
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: /opt/airflow/simple_auth_manager_passwords.json
+  volumes:
+    - .:/opt/project
+    - ./airflow/logs:/opt/airflow/logs
+  depends_on:
+    postgres:
+      condition: service_healthy
 
 services:
   pipeline:
@@ -11,8 +48,7 @@ services:
       - path: .env
         required: false
     environment:
-      LOCAL_LAKE_PATH: /opt/project/lake
-      SOURCE_DATA_PATH: /opt/project/data/generated
+      <<: *project-env
     volumes:
       - .:/opt/project
     working_dir: /opt/project
@@ -22,7 +58,8 @@ services:
         condition: service_healthy
 
   # Local stand-in for Redshift (WAREHOUSE_TYPE=postgres). The official image creates
-  # the database and user from these variables on first start.
+  # the database and user from these variables on first start; the Airflow metadata
+  # database is added by airflow-init.
   postgres:
     image: postgres:16.10
     environment:
@@ -40,6 +77,34 @@ services:
       timeout: 5s
       retries: 20
     mem_limit: 512m
+    restart: unless-stopped  # Airflow's metadata lives here; come back after a Docker restart
+
+  # One-off: create the Airflow metadata database (if missing) and migrate it.
+  airflow-init:
+    <<: *airflow-common
+    command: ["bash", "-c", "python /opt/project/docker/airflow/bootstrap.py db && airflow db migrate"]
+    restart: "no"
+
+  # All Airflow 3 components in one container (scheduler, API server/UI, DAG processor,
+  # triggerer) to fit the 8 GB host; tasks and Spark run here too.
+  airflow:
+    <<: *airflow-common
+    command: ["bash", "-c", "python /opt/project/docker/airflow/bootstrap.py auth && exec airflow standalone"]
+    ports:
+      - "127.0.0.1:${AIRFLOW_HOST_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    mem_limit: 3g
+    restart: unless-stopped
 
 volumes:
   postgres-data:
