@@ -16,6 +16,16 @@ from src.common.config import Settings
 SHUFFLE_PARTITIONS = 8  # small data on one machine; the default 200 only adds overhead
 S3A_CREDENTIALS_PROVIDER = "software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider"
 
+# Lake file format. Shared with the test SparkSession so tests write what production writes.
+LAKE_WRITE_CONFIG = {
+    # Keep lake partitions free of Hadoop marker files.
+    "spark.hadoop.mapreduce.fileoutputcommitter.marksuccessfuljobs": "false",
+    "spark.sql.parquet.compression.codec": "snappy",
+    # INT64 microseconds instead of the legacy INT96 encoding: standard Parquet that
+    # pyarrow and Redshift COPY read without special handling.
+    "spark.sql.parquet.outputTimestampType": "TIMESTAMP_MICROS",
+}
+
 
 def spark_config(settings: Settings) -> dict[str, str]:
     """Spark settings for the configured environment (separate for testability)."""
@@ -24,9 +34,7 @@ def spark_config(settings: Settings) -> dict[str, str]:
         "spark.sql.shuffle.partitions": str(SHUFFLE_PARTITIONS),
         "spark.driver.memory": settings.spark_driver_memory,
         "spark.ui.enabled": "false",
-        # Keep lake partitions free of Hadoop marker files.
-        "spark.hadoop.mapreduce.fileoutputcommitter.marksuccessfuljobs": "false",
-        "spark.sql.parquet.compression.codec": "snappy",
+        **LAKE_WRITE_CONFIG,
     }
     if settings.storage_mode == "s3":
         jars_dir = os.environ.get("SPARK_S3A_JARS_DIR", "/opt/spark-jars")

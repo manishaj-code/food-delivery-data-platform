@@ -15,6 +15,7 @@ def test_local_mode_config() -> None:
 
     assert config["spark.sql.session.timeZone"] == "UTC"
     assert config["spark.driver.memory"] == "2g"
+    assert config["spark.sql.parquet.outputTimestampType"] == "TIMESTAMP_MICROS"
     assert not any(key.startswith("spark.hadoop.fs.s3a") for key in config)
 
 

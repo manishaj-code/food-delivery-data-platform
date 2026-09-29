@@ -57,6 +57,8 @@ def spark():
     pytest.importorskip("pyspark")
     from pyspark.sql import SparkSession
 
+    from src.common.spark import LAKE_WRITE_CONFIG
+
     builder = (
         SparkSession.builder.master("local[1]")
         .appName("food-delivery-tests")
@@ -69,6 +71,8 @@ def spark():
         .config("spark.sql.codegen.wholeStage", "false")
         .config("spark.sql.adaptive.enabled", "false")
     )
+    for key, value in LAKE_WRITE_CONFIG.items():
+        builder = builder.config(key, value)
     s3a_jars = os.environ.get("SPARK_S3A_JARS_DIR")
     if s3a_jars and os.path.isdir(s3a_jars):  # installed in the container image
         builder = builder.config("spark.driver.extraClassPath", f"{s3a_jars}/*")
