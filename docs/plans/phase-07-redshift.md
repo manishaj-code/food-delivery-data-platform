@@ -32,7 +32,7 @@ Add `postgres` (16) service to `docker-compose.yml` with `docker/postgres/init.s
 `src/warehouse/init_warehouse.py`: run DDL for the configured dialect; populate `dim_date` via `sql/warehouse/populate_dim_date.sql` (insert missing dates only).
 
 ### Task 5 — Staging loaders
-`src/warehouse/staging_loader.py`: `RedshiftCopyLoader` (renders `sql/staging/copy_<table>.sql` with S3 partition URI + `REDSHIFT_IAM_ROLE_ARN`, `FORMAT AS PARQUET`) and `PostgresLoader` (pyarrow reads partition files → `COPY … FROM STDIN` CSV buffer). Both: `DELETE FROM stg_x` first (separate transaction), then load, then verify count = manifest count.
+`src/warehouse/staging_loader.py`: `RedshiftCopyLoader` (renders `sql/staging/copy_<table>.sql` with the S3 partition URI + `part-` key prefix, so `_manifest.json` is not loaded, + `REDSHIFT_IAM_ROLE_ARN`, `FORMAT AS PARQUET`) and `PostgresLoader` (pyarrow reads partition files → `COPY … FROM STDIN` CSV buffer). Both: `DELETE FROM stg_x` first (separate transaction), then load, then verify count = `_manifest.json` `row_count` (`src/transformation/publish.read_manifest`). pyarrow is already a runtime dependency (Phase 6).
 
 ### Task 6 — Upserts
 `sql/warehouse/upsert_dim_customer.sql`, `upsert_dim_restaurant.sql`, `upsert_dim_delivery_partner.sql`, `upsert_fact_order.sql`, `upsert_fact_payment.sql`, `upsert_fact_delivery.sql`: UPDATE (with stale-batch guard) then INSERT new keys, surrogate key lookups via dimension joins. `src/warehouse/loader.py`: `load_warehouse(run_date, run_id)` runs tables in order, each in one transaction; logs `Redshift load completed`.

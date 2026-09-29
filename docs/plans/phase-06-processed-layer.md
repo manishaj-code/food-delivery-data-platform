@@ -24,6 +24,8 @@ Phase 5 complete.
 ### Task 2 — Publish step
 `src/transformation/publish.py`: `publish_processed(run_date, run_id)` verifies each temp output (row count > 0 or expected NO_DATA, schema matches spec), replaces the run-date partition, writes `_manifest.json` (dataset, run_id, run_date, row_count, schema, source raw partition, created_at), deletes temp. Logs counts.
 
+**As implemented:** transform and publish are separate Airflow tasks that share only storage, so the writer (`write_processed(result, storage, settings)`) stages each dataset and writes `_staged.json` with Spark's row count last. `publish_processed(storage, run_date, run_id)` needs no Spark and no XCom: it reads the Parquet footers with pyarrow (new runtime dependency `pyarrow==25.0.1`), checks row count and schema for **all** datasets before replacing any partition, copies only `*.parquet` (no `.crc` files), writes `_manifest.json` last, and is a no-op on retry once published. Verification failures raise `TransformationError` (spec 07 §9). Spark now writes timestamps as `TIMESTAMP_MICROS` instead of legacy INT96 (`LAKE_WRITE_CONFIG` in `src/common/spark.py`, shared with the test session).
+
 ### Task 3 — Processed readers (done in Phase 5)
 `src/transformation/processed_reader.py` already provides `read_processed`, `read_processed_keys`, and `current_state` (partitions before the run date), used by validation and transformation. Phase 6 only verifies them against real published partitions (incl. `_manifest.json` being ignored by the Parquet reader).
 
@@ -44,6 +46,8 @@ tests/integration/test_processed_layer.py
 ## Files To Modify
 
 `src/validation/validator.py`, `src/transformation/facts.py`, `src/transformation/transform_job.py` (write outputs), `tests/data_quality/test_rules.py` (referential across partitions — AC-026).
+
+**As implemented:** the reader wiring and AC-026 tests were already done in Phases 4–5, so only `requirements.txt`, `src/common/spark.py`, `tests/conftest.py`, and `tests/sample_lake.py` (the shared fixture now stages and publishes both sample run dates) changed.
 
 ## Implementation Details
 

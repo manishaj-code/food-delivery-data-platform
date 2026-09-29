@@ -65,8 +65,8 @@ flowchart LR
 | 0 | Prepare source | `steps.prepare_source_data` | run date, load type | source CSV exists (generates the daily increment if missing, simulating the source system) | Python |
 | 1 | Ingest | `steps.ingest_dataset(dataset)` | source CSV | `raw/` CSV + metadata | Python (csv module) |
 | 2 | Validate | `steps.validate_data` | `raw/` partition, `processed/` parent keys | `validated/`, `quarantine/`, `reports/`, audit rows | PySpark |
-| 3 | Transform | `steps.transform_data` | `validated/` partition, processed dims | `processed/` partition (via temp output) | PySpark |
-| 4 | Publish processed | `steps.publish_processed` | transform output | verified partitions + `_manifest.json` | Python |
+| 3 | Transform | `steps.transform_data` | `validated/` partition, processed dims | staged output `_tmp/<run_id>/processed/` + `_staged.json` | PySpark |
+| 4 | Publish processed | `steps.publish_processed` | staged output | verified `processed/` partitions + `_manifest.json` | Python (pyarrow) |
 | 5 | Load warehouse | `steps.load_warehouse` | `processed/` partition | `stg_*`, `dim_*`, `fact_*` | SQL (Redshift/PostgreSQL) |
 | 6 | Post-load checks | `steps.run_dq_checks` | warehouse | pass/fail, audit rows | SQL |
 | 7 | Summary | `steps.pipeline_summary` | XCom results + audit | log summary, metrics | Python |
@@ -87,7 +87,10 @@ Validation and transformation are separate Airflow tasks (required DAG shape). T
 ├── processed/<dataset>/year=YYYY/month=MM/day=DD/part-*.parquet
 │     datasets: customers, restaurants, delivery_partners, orders, payments, delivery,
 │               order_analytics, daily_order_metrics
-│     + processed/<dataset>/year=…/_manifest.json
+│     + processed/<dataset>/year=…/_manifest.json   (dataset, run_id, run_date, row_count,
+│       files, schema, source_partitions, created_at; Spark and pyarrow skip files
+│       starting with "_", and Redshift COPY uses the `…/part-` key prefix so it
+│       never picks up the manifest)
 ├── reports/
 │   ├── data_quality/year=YYYY/month=MM/day=DD/<dataset>.json
 │   └── audit/year=YYYY/month=MM/day=DD/<stage>__<dataset>.json   # stage results, inserted into pipeline_run_audit by pipeline_summary
@@ -177,7 +180,8 @@ Spark runs in **local mode** (`local[*]`, driver memory `SPARK_DRIVER_MEMORY`, d
 | Layer | Mechanism |
 |---|---|
 | Raw | Deterministic path per (dataset, run date); partition replaced via `replace_partition`. |
-| Validated / quarantine / processed | Spark writes to a run-scoped temporary prefix (`_tmp/<run_id>/…`), then `replace_partition` replaces the run-date partition (delete target → copy staged files → delete staging). A failed writer never touches the existing partition; a failure during the short copy step is repaired by rerunning, and the processed `_manifest.json` (written last) marks a complete partition. |
+| Validated / quarantine | Spark writes to a run-scoped temporary prefix (`_tmp/<run_id>/…`), then `replace_partition` replaces the run-date partition (delete target → copy staged files → delete staging). A failed writer never touches the existing partition; a failure during the short copy step is repaired by rerunning. |
+| Processed | Split across two tasks. `transform_data` stages each dataset under `_tmp/<run_id>/processed/<dataset>/` and writes `_staged.json` (Spark's row count) last. `publish_processed` (Python + pyarrow, no Spark) verifies **all** staged datasets from the Parquet footers (row count = staged count, schema = §6) before replacing any partition; then per dataset: delete target → copy part files → write `_manifest.json` (last; marks a complete partition) → delete staging. A retry whose staging is gone but whose manifest carries the same run_id is a no-op. |
 | Reports | JSON overwritten per (dataset, run date). |
 | Warehouse | Staging cleared per table before load (outside the upsert transaction — Redshift `TRUNCATE` commits implicitly, so `DELETE` is used inside transactions); UPDATE-then-INSERT by business key; stale-batch guard. |
 | Audit | Delete-then-insert per (run_id, dataset, stage). |

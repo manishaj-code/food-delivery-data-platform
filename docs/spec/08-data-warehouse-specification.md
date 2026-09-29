@@ -217,7 +217,7 @@ sequenceDiagram
     participant STG as stg_* table
     participant T as dim/fact table
     L->>STG: DELETE FROM stg_x (own transaction)
-    L->>STG: COPY stg_x FROM s3://…/processed/x/year=…/ IAM_ROLE … FORMAT AS PARQUET<br/>(local: Python loader reads Parquet → COPY FROM STDIN)
+    L->>STG: COPY stg_x FROM s3://…/processed/x/year=…/part- IAM_ROLE … FORMAT AS PARQUET<br/>(local: Python loader reads Parquet → COPY FROM STDIN)
     L->>T: BEGIN
     L->>T: UPDATE t SET … FROM stg_x WHERE t.bk = stg.bk AND stg.source_ingestion_date >= t.source_ingestion_date
     L->>T: INSERT INTO t SELECT … FROM stg_x LEFT JOIN t ON bk WHERE t.bk IS NULL

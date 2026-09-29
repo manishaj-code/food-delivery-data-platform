@@ -1,8 +1,8 @@
 """Shared end-to-end fixture: sample data ingested and validated into a temporary lake.
 
-Historical sample -> run date 2026-08-31: ingest, validate, transform, write
-``processed/``. Then the 2026-09-01 increment is ingested, validated, and transformed
-against those earlier parents.
+Historical sample -> run date 2026-08-31: ingest, validate, transform, stage, publish
+``processed/``. Then the 2026-09-01 increment goes through the same steps against
+those earlier parents.
 """
 
 from __future__ import annotations
@@ -16,11 +16,11 @@ from typing import Any
 import pytest
 
 from src.common.config import Settings, load_settings
-from src.common.paths import Zone
 from src.common.storage import LocalStorage
 from src.ingestion import INGESTORS
+from src.transformation.processed_writer import write_processed
+from src.transformation.publish import publish_processed
 from src.transformation.transform_job import TransformationResult, run_transformations
-from src.validation.quarantine import write_zone
 from src.validation.run_validation import validate_all
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "data" / "sample"
@@ -34,8 +34,8 @@ class ValidatedLake:
     settings: Settings
     historical: dict[str, dict[str, Any]]  # dataset -> report
     daily: dict[str, dict[str, Any]]
-    historical_transform: TransformationResult  # written to processed/
-    daily_transform: TransformationResult  # in memory only
+    historical_transform: TransformationResult  # both published to processed/
+    daily_transform: TransformationResult
 
 
 def manifest(label: str) -> dict[str, int]:
@@ -52,13 +52,13 @@ def ingest(storage: LocalStorage, run_date: date, load_type: str, run_id: str) -
         ingestor(storage, SAMPLE_DIR).run(run_date, load_type, run_id)
 
 
-def transform_and_write(
+def transform_and_publish(
     spark, storage: LocalStorage, settings: Settings, run_date: date, run_id: str
 ) -> TransformationResult:
-    """Transform validated/ and write processed/ (a minimal stand-in for the Phase 6 publish)."""
+    """Transform validated/, stage the outputs, and publish them to processed/."""
     result = run_transformations(spark, storage, settings, run_date, run_id)
-    for name, df in result.datasets.items():
-        write_zone(df, storage, settings, Zone.PROCESSED, name, run_date, run_id)
+    write_processed(result, storage, settings)
+    publish_processed(storage, run_date, run_id)
     return result
 
 
@@ -69,13 +69,13 @@ def validated_lake(spark, tmp_path_factory: pytest.TempPathFactory) -> Validated
 
     ingest(storage, HISTORICAL_RUN, "historical", "test__historical")
     historical = validate_all(spark, storage, settings, HISTORICAL_RUN, "test__historical")
-    historical_transform = transform_and_write(
+    historical_transform = transform_and_publish(
         spark, storage, settings, HISTORICAL_RUN, "test__historical"
     )
 
     ingest(storage, DAILY_RUN, "incremental", "test__daily")
     daily = validate_all(spark, storage, settings, DAILY_RUN, "test__daily")
-    daily_transform = run_transformations(spark, storage, settings, DAILY_RUN, "test__daily")
+    daily_transform = transform_and_publish(spark, storage, settings, DAILY_RUN, "test__daily")
 
     return ValidatedLake(
         storage,
