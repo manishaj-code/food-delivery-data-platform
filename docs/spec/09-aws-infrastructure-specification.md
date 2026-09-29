@@ -51,8 +51,8 @@ flowchart LR
 |---|---|
 | Why required | Durable, cheap data lake storage decoupled from the warehouse; Redshift COPY reads Parquet directly from it. |
 | What it stores | `raw/`, `validated/`, `processed/`, `quarantine/`, `reports/` (spec 07 §4). |
-| Pipeline connection | Ingestion writes via boto3; Spark reads/writes via `s3a://` (hadoop-aws); Redshift `COPY` reads `processed/`. |
-| Configuration | Name `${var.bucket_name}` (default `food-delivery-data-${environment}-${account_id}` for global uniqueness); versioning disabled (data reproducible from source; saves cost); SSE-S3 (AES-256); lifecycle: `validated/` expire 7 days, `quarantine/` expire 90 days, `reports/` expire 365 days; abort incomplete multipart uploads after 7 days. |
+| Pipeline connection | Ingestion writes via boto3; Spark reads/writes via `s3a://` (hadoop-aws 3.5.0 + AWS SDK v2 bundle 2.35.4, matching the Hadoop inside PySpark 4.2.0; installed in the image with pinned SHA-1 checksums; credentials via the SDK v2 default chain so a named AWS profile works); Redshift `COPY` reads `processed/`. |
+| Configuration | Name `${var.bucket_name}` (default `food-delivery-data-${environment}-${account_id}` for global uniqueness); versioning disabled (data reproducible from source; saves cost); SSE-S3 (AES-256); lifecycle: `_tmp/` expire 1 day (staging left by crashed runs), `validated/` expire 7 days, `quarantine/` expire 90 days, `reports/` expire 365 days; abort incomplete multipart uploads after 7 days. |
 | Security | Block Public Access (all four settings); bucket policy denies `aws:SecureTransport = false`; access only via the pipeline role and the Redshift role (prefix-scoped). |
 
 ### 3.2 Amazon Redshift Serverless

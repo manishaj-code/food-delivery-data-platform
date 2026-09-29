@@ -90,7 +90,7 @@ Master plan §6 plus the ACs above; cost guardrails (usage limit) in place; dest
 ## Risks / Considerations
 
 - CR-01/CR-02 cost — usage limit, destroy after demo, recommend manual AWS Budget.
-- TR-01 s3a credentials in containers — mounted profile + `DefaultAWSCredentialsProviderChain`.
+- TR-01 s3a credentials in containers — mounted profile + AWS SDK v2 `DefaultCredentialsProvider` (Hadoop 3.5).
 - TR-04 dialect issues discovered on real Redshift — fix DDL/DML and update spec 08 if needed.
 
 ## Dependencies

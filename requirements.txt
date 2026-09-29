@@ -1,2 +1,3 @@
 # Runtime dependencies (pinned). Further packages are added in the phase that needs them.
+boto3==1.43.104
 pyspark==4.2.0

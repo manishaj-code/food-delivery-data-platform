@@ -19,7 +19,7 @@ Phase 3 complete (paths, storage, replace semantics); Spark runs in the dev cont
 ## Tasks
 
 ### Task 1 — Spark session factory
-`src/common/spark.py`: `get_spark(app_name)` — `local[*]`, `spark.sql.session.timeZone=UTC`, driver memory from config, shuffle partitions small (e.g. 8), s3a settings when `STORAGE_MODE=s3`.
+`src/common/spark.py`: `get_spark(app_name)` — `local[*]`, `spark.sql.session.timeZone=UTC`, driver memory from config, shuffle partitions small (e.g. 8), s3a settings when `STORAGE_MODE=s3` (`spark.driver.extraClassPath=$SPARK_S3A_JARS_DIR/*`, `fs.s3a.aws.credentials.provider=software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider` — Hadoop 3.5 uses AWS SDK v2, whose default chain includes named profiles).
 
 ### Task 2 — Rule model and catalogue
 `src/validation/rules.py`: `Rule` dataclass (rule_id, dataset, columns, severity, check type, params) and check builders returning a Spark boolean "failed" Column (`not_null`, `unique`, `in_set`, `numeric_range`, `valid_date`, `valid_timestamp`, `column_lte`, `exists_in`, `required_when`).
