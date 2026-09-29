@@ -15,10 +15,10 @@ from typing import Any
 from pyspark.sql import Column, DataFrame, Window
 from pyspark.sql import functions as F
 
-from src.common.constants import BUSINESS_KEYS, SOURCE_COLUMN_TYPES
+from src.common.constants import BUSINESS_KEYS, SEVERITY_ERROR, SEVERITY_WARN, SOURCE_COLUMN_TYPES
 
-ERROR = "ERROR"
-WARN = "WARN"
+ERROR = SEVERITY_ERROR
+WARN = SEVERITY_WARN
 
 NOT_NULL = "not_null"
 UNIQUE = "unique"

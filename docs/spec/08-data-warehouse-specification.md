@@ -230,15 +230,18 @@ sequenceDiagram
 
 **Idempotency:** re-staging the same partition and re-running the upsert changes nothing except `updated_at` — no duplicate business keys (FR-092).
 
-**Surrogate-key lookups:** facts resolve dimension keys with `JOIN dim_x ON dim_x.bk = stg.bk`. Since validation guarantees parents exist, an unmatched key is a bug → caught by WQ-003 and the transaction's row-count check.
+**Surrogate-key lookups:** facts resolve dimension keys with `JOIN dim_x ON dim_x.bk = stg.bk` (the INSERT uses `LEFT JOIN`, so a missing dimension row gives a NULL key that the `NOT NULL` constraint rejects — enforced on Redshift too — instead of silently dropping the fact). Since validation guarantees parents exist, an unmatched key is a bug → caught by the constraint, WQ-003, and the transaction's final check that every staged business key exists in the target.
+
+**Staging row count:** after loading, `stg_x` must hold exactly the partition's `_manifest.json` `row_count`, otherwise the load stops before the upsert. Staging keeps the batch after the load so post-load checks (WQ-001, WQ-005) can read it.
 
 **SQL files:**
 
 ```text
 sql/ddl/redshift/     01_schema.sql, 02_dimensions.sql, 03_facts.sql, 04_staging.sql, 05_audit.sql
 sql/ddl/postgres/     same file names, PostgreSQL dialect
-sql/staging/          copy_<table>.sql (Redshift COPY templates)
-sql/warehouse/        upsert_dim_customer.sql … upsert_fact_delivery.sql, populate_dim_date.sql
+sql/staging/          copy_from_s3.sql (one Redshift COPY template for all staging tables)
+sql/warehouse/        upsert_dim_customer.sql … upsert_fact_delivery.sql, populate_dim_date.sql,
+                      checks/wq_002 … wq_006_*.sql (post-load checks; WQ-001 is in Python)
 sql/analytics/        01_…15_*.sql, views/vw_*.sql
 ```
 

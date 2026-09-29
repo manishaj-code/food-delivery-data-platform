@@ -62,6 +62,16 @@ tests/integration/test_warehouse_load.py, test_post_load_checks.py
 tests/integration/test_idempotency.py, test_incremental.py (initial versions)
 ```
 
+**As implemented:**
+
+- No `docker/postgres/init.sql`: the official `postgres:16.10` image creates the database and user from `POSTGRES_DB/USER/PASSWORD`, mapped from `REDSHIFT_DATABASE/USER/PASSWORD` in the untracked `.env` (Compose refuses to start without `REDSHIFT_PASSWORD`). The Airflow metadata database gets its init script in Phase 9. The host port defaults to `127.0.0.1:5433` (`POSTGRES_HOST_PORT`) because a locally installed PostgreSQL commonly owns 5432; the pipeline uses the Compose network, not the host port.
+- One Redshift COPY template `sql/staging/copy_from_s3.sql` (`{table}`, `{authorization}` = `IAM_ROLE %(iam_role_arn)s` or `CREDENTIALS %(credentials)s`) instead of seven identical per-table files.
+- `sql_runner.render_sql` strips full-line comments (a comment mentioning `%(x)s` would otherwise break parameter binding) and rejects unfilled placeholders; `translate_errors` maps `OperationalError` → `WarehouseConnectionError` (retryable), other driver errors → `WarehouseLoadError`, keeping only the primary message and SQLSTATE (DETAIL lines can quote row data).
+- `dim_date` uses four digit tables instead of `generate_series` (leader-node only on Redshift).
+- Each upsert transaction ends by checking that every staged business key exists in the target.
+- Post-load check SQL returns `(object_name, failed_count)` rows; WQ-001 (staging vs manifest) runs in Python. Severity constants moved to `src/common/constants.py` so the warehouse code does not import the Spark rule engine.
+- Tests: `tests/unit/test_warehouse_sql.py`, `tests/unit/test_warehouse_connection.py` (moto Secrets Manager, no password in errors/logs) in addition to the integration files.
+
 ## Files To Modify
 
 `docker-compose.yml` (postgres service), `.env.example` (`WAREHOUSE_TYPE`, `REDSHIFT_*`), `requirements.txt` (psycopg2-binary if not yet).

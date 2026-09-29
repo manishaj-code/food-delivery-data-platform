@@ -128,6 +128,10 @@ LOAD_TYPES: tuple[str, ...] = (LOAD_TYPE_HISTORICAL, LOAD_TYPE_INCREMENTAL)
 LATE_DELIVERY_THRESHOLD_MINUTES = 45
 DEFAULT_DQ_MIN_QUALITY_SCORE = 95.0
 
+# Check severities (spec 06): ERROR fails records/the run, WARN is reported only.
+SEVERITY_ERROR = "ERROR"
+SEVERITY_WARN = "WARN"
+
 
 def source_file_name(dataset: str, label: str) -> str:
     """Source CSV name, e.g. ``orders_historical.csv`` or ``orders_2026-09-29.csv``."""
