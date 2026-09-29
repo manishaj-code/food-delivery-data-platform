@@ -19,10 +19,10 @@ Phase 2 complete (storage protocol, ingestion).
 ## Tasks
 
 ### Task 1 — Lake paths module
-`src/common/paths.py`: `Zone` enum (`raw`, `validated`, `quarantine`, `processed`, `reports`), `partition_path(zone, dataset, run_date)`, `raw_file_path(dataset, run_date)`, `report_path(...)`, `audit_path(...)`, `temp_path(zone, dataset, run_id)`, `spark_uri(path)` returning `file://…` or `s3a://bucket/…`. Replace the Phase 2 temporary helper.
+`src/common/paths.py`: `Zone` enum (`raw`, `validated`, `quarantine`, `processed`, `reports`), `partition_path(zone, dataset, run_date)`, `raw_file_path(dataset, run_date)`, `report_path(...)`, `audit_path(...)`, `temp_path(zone, dataset, run_id)`, `spark_uri(path)` returning `file://…` or `s3a://bucket/…`. Extends the module created in Phase 2 (`partition_path`, `raw_file_path` already exist).
 
 ### Task 2 — S3 backend
-`S3Storage` in `src/common/storage.py` using boto3 (client created from settings/region; credentials from the default chain — never from code). Implements the same protocol; `delete_prefix` uses paginated list + batch delete; errors wrapped in `StorageError(retryable=True)`.
+`S3Storage` in `src/common/storage.py` using boto3 (client created from settings/region; credentials from the default chain — never from code). Implements the same protocol (`write_file` → `upload_file`); `delete_prefix` uses paginated list + batch delete; errors wrapped in `StorageError(retryable=True)`.
 
 ### Task 3 — Overwrite semantics
 `replace_partition(zone, dataset, run_date, writer)` pattern: write to run-scoped temp prefix → delete target partition → move/copy into place → delete temp. Used by raw writes now and by Spark outputs later.

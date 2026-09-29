@@ -101,6 +101,11 @@ HISTORICAL_START_DATE = date(2026, 1, 1)
 HISTORICAL_END_DATE = date(2026, 8, 31)
 HISTORICAL_FILE_LABEL = "historical"
 
+# Pipeline load types (spec 07 §5).
+LOAD_TYPE_HISTORICAL = "historical"
+LOAD_TYPE_INCREMENTAL = "incremental"
+LOAD_TYPES: tuple[str, ...] = (LOAD_TYPE_HISTORICAL, LOAD_TYPE_INCREMENTAL)
+
 # Business thresholds (spec 02 §5, spec 06 §5).
 LATE_DELIVERY_THRESHOLD_MINUTES = 45
 DEFAULT_DQ_MIN_QUALITY_SCORE = 95.0
