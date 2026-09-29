@@ -50,6 +50,24 @@ SOURCE_COLUMNS: dict[str, tuple[str, ...]] = {
 
 BUSINESS_KEYS: dict[str, str] = {dataset: columns[0] for dataset, columns in SOURCE_COLUMNS.items()}
 
+# Logical types of non-string source columns (spec 05 §4); everything else is a string.
+SOURCE_COLUMN_TYPES: dict[str, dict[str, str]] = {
+    CUSTOMERS: {"signup_date": "date"},
+    RESTAURANTS: {"rating": "decimal(2,1)"},
+    DELIVERY_PARTNERS: {"joining_date": "date"},
+    ORDERS: {"order_date": "timestamp", "order_amount": "decimal(10,2)"},
+    PAYMENTS: {"payment_amount": "decimal(10,2)", "payment_date": "timestamp"},
+    DELIVERY: {"pickup_time": "timestamp", "delivery_time": "timestamp"},
+}
+
+# Enumerated columns, upper-cased before validation (spec 06 §1).
+ENUM_COLUMNS: tuple[str, ...] = (
+    "order_status",
+    "payment_status",
+    "payment_method",
+    "delivery_status",
+)
+
 # Metadata columns added by ingestion (FR-013).
 INGESTION_METADATA_COLUMNS: tuple[str, ...] = (
     "_ingestion_timestamp",

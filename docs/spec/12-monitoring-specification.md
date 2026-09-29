@@ -24,8 +24,10 @@ INFO - Starting <dataset> ingestion
 INFO - Records received: <n>
 INFO - Records written to raw: <n>
 INFO - Starting validation for <dataset>
-INFO - Valid records: <n>
-INFO - Invalid records: <n>
+INFO - Dataset: <dataset>
+INFO - Total Records: <n>
+INFO - Valid Records: <n>
+INFO - Invalid Records: <n>
 INFO - Quality Score: <score>%
 INFO - Transformation completed
 INFO - Redshift load completed          # also used in local postgres mode, with "(warehouse_type=postgres)"

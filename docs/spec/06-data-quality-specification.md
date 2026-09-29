@@ -16,7 +16,7 @@ Implements FR-020 – FR-026. Framework: **custom lightweight PySpark rule engin
 | Valid record | Fails no `ERROR` rule. |
 | Quarantine | `quarantine/<dataset>/year=/month=/day=/` Parquet with original (string) values + DQ metadata. |
 
-Validation reads raw CSV **as strings**, trims values, converts empty strings to NULL, upper-cases enumerated columns (status, method), then evaluates rules. Type-dependent rules (date/number validity) use safe casts: a non-null value whose cast returns NULL fails the rule.
+Validation reads raw CSV **as strings**, trims values, converts empty strings to NULL, upper-cases enumerated columns (status, method), then evaluates rules. Type-dependent rules (date/number validity) use safe casts: a non-null value whose cast returns NULL fails the rule. Spark 4 runs in ANSI mode, where a plain cast of a bad value raises, so parsing uses `try_to_timestamp` / `try_cast` with the exact source formats (`yyyy-MM-dd`, `yyyy-MM-dd HH:mm:ss`); e.g. `2026-02-30`, `NaN`, and `31/01/2026` fail. The same parsing produces the typed `validated/` columns, so validation and typing can never disagree.
 
 ## 2. Rule Catalogue
 
@@ -155,6 +155,7 @@ INFO - Quality Score: 99.87%
   "quality_score": 99.87,
   "threshold": 95.0,
   "passed": true,
+  "status": "PASSED",
   "rule_results": [
     {"rule_id": "DQ-ORD-006", "severity": "ERROR", "failed_records": 10}
   ],
@@ -162,6 +163,8 @@ INFO - Quality Score: 99.87%
   "validated_at": "2026-09-29T01:12:03Z"
 }
 ```
+
+`status` is `PASSED`, `FAILED` (below threshold) or `NO_DATA` (0 records). `rule_results` (ERROR) and `warnings` (WARN) list only rules with at least one failure. The score used by the gate is the rounded report value, so the report and the gate always agree.
 
 The same totals are written to `pipeline_run_audit` (stage `validation`).
 

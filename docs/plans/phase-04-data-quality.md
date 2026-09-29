@@ -28,7 +28,7 @@ Phase 3 complete (paths, storage, replace semantics); Spark runs in the dev cont
 ### Task 3 — Validator
 `src/validation/validator.py`: read raw CSV as strings → normalise (trim, empty→NULL, upper enums) → apply rules → array of failed rule IDs → split ERROR-failed vs valid → cast valid rows to typed schema → return `ValidationOutcome` (valid DF, invalid DF, counts per rule, warnings).
 Uniqueness: `row_number()` over key ordered by `_source_row_number`; rows > 1 fail.
-Referential: parent keys = current valid parent DF ∪ keys read from `processed/<parent>/` (empty if none yet — reader implemented fully in Phase 6, stubbed here).
+Referential: parent keys = current valid parent DF ∪ keys read from `processed/<parent>/` (empty if none yet). The reader (`read_processed_keys`) is implemented here — it only needs Parquet under `processed/`, which Phase 6 starts writing; tests promote `validated/` output to `processed/` to exercise it.
 
 ### Task 4 — Quarantine and validated writers
 `src/validation/quarantine.py`: write invalid rows (strings + `_dq_failed_rules`, `_dq_validated_at`) and valid rows to `quarantine/` and `validated/` using temp prefix + replace.
