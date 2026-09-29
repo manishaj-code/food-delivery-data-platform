@@ -60,17 +60,17 @@ Metric publishing failures are logged as WARNING and never fail the pipeline.
 | run_date | DATE | Logical date |
 | load_type | VARCHAR(20) | `historical` / `incremental` |
 | dataset | VARCHAR(50) | Dataset or `_pipeline` |
-| stage | VARCHAR(30) | `ingestion`, `validation`, `transformation`, `warehouse_load`, `post_load_checks`, `pipeline` |
+| stage | VARCHAR(30) | `prepare_source`, `ingestion`, `validation`, `transformation`, `publish`, `warehouse_load`, `post_load_checks`, `pipeline` (one per DAG step, so every failed step has a row) |
 | status | VARCHAR(20) | `SUCCESS`, `NO_DATA`, `FAILED` |
 | records_in | BIGINT | Records read |
 | records_out | BIGINT | Records written/loaded |
 | records_rejected | BIGINT | Quarantined (validation) |
 | quality_score | DECIMAL(5,2) | Validation only |
 | started_at / finished_at | TIMESTAMP | UTC |
-| duration_seconds | DECIMAL(10,2) | |
+| duration_seconds | DECIMAL(10,2) | For steps that process all datasets together (validation, transformation, publish, warehouse load), the step's elapsed time when the dataset's row was written — not a per-dataset timing. |
 | error_message | VARCHAR(1000) | Sanitised, no secrets |
 
-Grain: one row per `run_id` × `dataset` × `stage`; replaced on rerun (FR-093). Stages before the warehouse is reachable still produce audit records: they are written to `reports/audit/…/<stage>.json` in the lake and inserted into the table by `pipeline_summary` (so audit works even if the warehouse load fails later).
+Grain: one row per `run_id` × `dataset` × `stage`; replaced on rerun (FR-093). Stages before the warehouse is reachable still produce audit records: they are written to `reports/audit/…/<stage>__<dataset>.json` in the lake and inserted into the table by `pipeline_summary` (so audit works even if the warehouse load fails later). Steps that cover several datasets write one row per dataset; a step-level failure is recorded with dataset `_pipeline` (removed when a retry of the step starts). On a failed run the failure callback writes the `pipeline` row with status `FAILED` (`error_message` = `<task_id>: <error>`) and, when the warehouse is reachable, inserts the run's records too.
 
 Useful queries (documented in `docs/monitoring.md`): last 7 runs status; quality score trend per dataset; slowest stages.
 

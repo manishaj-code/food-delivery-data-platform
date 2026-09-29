@@ -66,7 +66,10 @@ All runtime configuration comes from environment variables (FR-131). Required va
 | METRICS_ENABLED | No | `false` |
 | POSTGRES_HOST_PORT | No | `5433` — local warehouse port on `127.0.0.1` for SQL clients |
 | LOG_LEVEL | No | `INFO` |
-| AIRFLOW admin/Fernet vars | **Yes** | local `.env` only |
+| AIRFLOW_ADMIN_USERNAME | No | `admin` |
+| AIRFLOW_ADMIN_PASSWORD, AIRFLOW_DB_PASSWORD, AIRFLOW_FERNET_KEY, AIRFLOW_JWT_SECRET, AIRFLOW_API_SECRET_KEY | **Yes** | local `.env` only (Compose refuses to start without them) |
+| AIRFLOW_UID | No | `1000` |
+| AIRFLOW_HOST_PORT | No | `8080` — Airflow UI on `127.0.0.1` |
 
 The `REDSHIFT_*` names (required by `project_details.md` §28) also point to the local PostgreSQL warehouse when `WAREHOUSE_TYPE=postgres`.
 

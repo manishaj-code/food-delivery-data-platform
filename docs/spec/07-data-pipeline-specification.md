@@ -111,16 +111,16 @@ One pipeline run = one **run date** (`ds`) and one **load type**. All zones part
 
 | Step | Behaviour |
 |---|---|
-| Trigger | Manual DAG trigger with `{"load_type": "historical"}` (or CLI `run-pipeline --load-type historical --run-date YYYY-MM-DD`). |
+| Trigger | Manual DAG trigger with logical date **2026-08-31** and `{"load_type": "historical"}` (or CLI `run-pipeline --load-type historical --run-date 2026-08-31`). |
 | Source | `<dataset>_historical.csv` (2026-01-01 → 2026-08-31). |
-| Partition | Written under the trigger's run date. |
+| Partition | Written under the trigger's run date. It must be earlier than every daily run date: daily runs look up parents only in `processed/` partitions dated before them (§6), and the stale-batch guard compares run dates. Hence the DAG's `start_date` is 2026-08-31 — Airflow creates no tasks for logical dates before `start_date` (such a run would "succeed" empty). |
 | Warehouse | Same upsert path as daily (works on an empty or populated warehouse). |
 
 ### Daily increment
 
 | Step | Behaviour |
 |---|---|
-| Trigger | `@daily` schedule, `catchup=False`, `max_active_runs=1`. |
+| Trigger | `@daily` schedule, `catchup=False`, `max_active_runs=1`. Airflow 3 schedules `@daily` with `CronTriggerTimetable`: the run triggered at midnight has that day as its logical date (`ds`). Unpausing the DAG immediately creates the run for the latest midnight. |
 | Source | `<dataset>_<ds>.csv`: new orders whose `order_date` is on `ds`, their payments/deliveries, new customers, and status updates for earlier orders. |
 | Transform | Reads only the `validated/` partition for `ds`; reads existing `processed/` dimension keys for lookups/referential checks. |
 | Load | Loads only the `processed/` partition for `ds` into staging, then upserts. |

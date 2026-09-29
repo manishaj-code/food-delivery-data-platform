@@ -24,15 +24,15 @@ The working folder is not yet a Git repository; `git init` happens in Phase 1.
 | Image | Dockerfile | Base | Contents | Used by |
 |---|---|---|---|---|
 | Pipeline app | `Dockerfile` | `python:3.12-slim` (pinned digest/tag) | OpenJDK 17 JRE headless, `requirements.txt`, `src/`, `scripts/`, `sql/`; non-root user; entrypoint `python -m src.cli` | Manual/CLI runs, CI build, tests in container |
-| Airflow | `docker/airflow/Dockerfile` | `apache/airflow:3.x-python3.12` (pinned) | OpenJDK 17 JRE, project requirements (constraints-compatible), project source mounted/copied | Airflow scheduler/API server/DAG processor |
+| Airflow | `docker/airflow/Dockerfile` | `apache/airflow:3.3.2-python3.12` (pinned) | Java 21 JRE (copied from `eclipse-temurin:21-jre` — the Debian bookworm base has no Java 21 package), project requirements installed with `apache-airflow` pinned (boto3 left at Airflow's version: its Amazon provider pins botocore), `pip check` at build; project source mounted | Airflow scheduler/API server/DAG processor |
 
 ### Compose services (`docker-compose.yml`)
 
 | Service | Purpose |
 |---|---|
-| `postgres` | PostgreSQL 16. Databases: `airflow` (metadata) and `warehouse` (local warehouse), created by `docker/postgres/init.sql`. Named volume. Healthcheck. |
-| `airflow-init` | One-off: `airflow db migrate`, create admin user from env vars. |
-| `airflow` | Single container running all Airflow 3 components (scheduler, API server/UI on `localhost:8080`, DAG processor, triggerer) via `airflow standalone`, LocalExecutor, Postgres metadata DB. Tasks — including Spark local mode — run here. Chosen over one container per component to fit the 8 GB host (TR-03); splitting into separate services is a documented option for bigger machines. |
+| `postgres` | PostgreSQL 16. Databases: `warehouse` (local warehouse, created by the image from `REDSHIFT_*`) and `airflow` (metadata, created by `airflow-init`). Named volume. Healthcheck. |
+| `airflow-init` | One-off: `docker/airflow/bootstrap.py db` creates the `airflow` role/database if missing (works on new and existing volumes, unlike `docker-entrypoint-initdb.d`), then `airflow db migrate`. |
+| `airflow` | Single container running all Airflow 3 components (scheduler, API server/UI on `localhost:8080`, DAG processor, triggerer) via `airflow standalone`, LocalExecutor (parallelism 1), Postgres metadata DB. Tasks — including Spark local mode — run here. Chosen over one container per component to fit the 8 GB host (TR-03); splitting into separate services is a documented option for bigger machines. Login: SimpleAuthManager user `AIRFLOW_ADMIN_USERNAME`, password file written from `AIRFLOW_ADMIN_PASSWORD` at start (`bootstrap.py auth`). Runs as uid `AIRFLOW_UID` (default 1000 = the pipeline image's `app` user) so both containers can write the mounted `lake/` and `data/`. |
 | `pipeline` | Pipeline app container for CLI runs (`docker compose run --rm pipeline run-pipeline …`), data generation, and tests. |
 
 Mounts: `./lake`, `./data`, `./src`, `./sql`, `./airflow/dags` (dev live-reload); `~/.aws` read-only only when AWS mode is used. Configuration via `env_file: .env`.
