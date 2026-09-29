@@ -141,5 +141,5 @@ def run_post_load_checks(
                 checks=[r.check_id for r in failed],
                 failures={r.check_id: r.failures for r in failed},
             )
-        logger.info("Post-load checks completed")
+        logger.info("Post-load checks passed")  # required message (spec 12 §2)
         return results
