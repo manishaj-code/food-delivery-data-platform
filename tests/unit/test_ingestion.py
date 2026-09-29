@@ -24,10 +24,11 @@ from src.common.exceptions import (
     StorageError,
 )
 from src.common.paths import raw_file_path
-from src.common.storage import LocalStorage
+from src.common.storage import LocalStorage, S3Storage
 from src.ingestion import INGESTORS
 from src.ingestion.base_ingestion import STATUS_NO_DATA, STATUS_SUCCESS
 from src.ingestion.orders_ingestion import OrdersIngestion
+from tests.conftest import TEST_BUCKET
 
 pytestmark = pytest.mark.unit
 
@@ -253,3 +254,25 @@ def test_logs_required_messages(storage: LocalStorage, caplog: pytest.LogCapture
     assert f"Records received: {result.records_read}" in messages
     assert f"Records written to raw: {result.records_written}" in messages
     assert any(m.startswith("Ingestion finished: status=SUCCESS") for m in messages)
+
+
+def test_same_ingestion_writes_identical_path_to_s3(s3_client, tmp_path: Path) -> None:
+    """AC-007: identical keys for local and S3 storage."""
+    local = LocalStorage(tmp_path / "lake")
+    s3 = S3Storage(TEST_BUCKET, client=s3_client)
+
+    local_result = OrdersIngestion(local, SAMPLE_DIR).run(RUN_DATE, "incremental", RUN_ID)
+    s3_result = OrdersIngestion(s3, SAMPLE_DIR).run(RUN_DATE, "incremental", RUN_ID)
+
+    key = raw_file_path(ORDERS, RUN_DATE)
+    assert s3.list("raw/") == local.list("raw/") == [key]
+    assert s3_result.output_path == f"s3://{TEST_BUCKET}/{key}"
+    assert s3_result.records_written == local_result.records_written
+    assert _drop_timestamps(s3.read_bytes(key)) == _drop_timestamps(local.read_bytes(key))
+    assert s3.list("_tmp/") == []
+
+
+def _drop_timestamps(data: bytes) -> list[list[str]]:
+    rows = list(csv.reader(data.decode("utf-8").splitlines()))
+    column = rows[0].index("_ingestion_timestamp")
+    return [row[:column] + row[column + 1 :] for row in rows]

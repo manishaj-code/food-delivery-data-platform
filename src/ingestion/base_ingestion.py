@@ -1,4 +1,4 @@
-"""Reusable ingestion flow: source CSV -> raw layer (FR-010 – FR-017, FR-090).
+"""Reusable ingestion flow: source CSV -> raw layer (FR-010 – FR-017, FR-044, FR-090).
 
 Dataset modules only declare an ``IngestionConfig``; all reading, checking,
 writing, and logging lives here.
@@ -19,9 +19,9 @@ from src.common.config import Settings
 from src.common.constants import INGESTION_METADATA_COLUMNS, TIMESTAMP_FORMAT
 from src.common.exceptions import PipelineError, SchemaValidationError, StorageError
 from src.common.logging_config import log_context
-from src.common.paths import raw_file_path
+from src.common.paths import Zone, raw_file_path
 from src.common.sources import CsvFileSource, Source
-from src.common.storage import Storage, get_storage
+from src.common.storage import Storage, get_storage, replace_partition
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +80,7 @@ class BaseIngestion:
             logger.info("Starting %s ingestion", self.dataset)
             source = source or self.resolve_source(run_date, load_type)
             key = raw_file_path(self.dataset, run_date)
+            key_name = key.rsplit("/", 1)[1]
             logger.info("Source: %s", source.location)
 
             metadata = [
@@ -92,7 +93,14 @@ class BaseIngestion:
                     temp_file = Path(temp_dir) / f"{self.dataset}.csv"
                     records = self._write_raw_csv(source, temp_file, metadata, run_id)
                     logger.info("Records received: %d", records)
-                    self.storage.write_file(key, temp_file)
+                    replace_partition(
+                        self.storage,
+                        Zone.RAW,
+                        self.dataset,
+                        run_date,
+                        run_id,
+                        lambda staging: self.storage.write_file(staging + key_name, temp_file),
+                    )
             except PipelineError as exc:
                 # Typed errors carry the run context (FR-016); logged once at the step boundary.
                 for name, value in (("dataset", self.dataset), ("run_id", run_id), ("key", key)):

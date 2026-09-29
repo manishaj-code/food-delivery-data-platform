@@ -28,7 +28,7 @@ Phase 2 complete (storage protocol, ingestion).
 `replace_partition(zone, dataset, run_date, writer)` pattern: write to run-scoped temp prefix → delete target partition → move/copy into place → delete temp. Used by raw writes now and by Spark outputs later.
 
 ### Task 4 — Spark S3 configuration (prepared, not yet used)
-Document/pin `hadoop-aws` + AWS SDK bundle versions matching the PySpark Hadoop version; add to the container image so Phase 4 can read `s3a://`. Uses `DefaultAWSCredentialsProviderChain`.
+Document/pin `hadoop-aws` + AWS SDK bundle versions matching the PySpark Hadoop version; add to the container image so Phase 4 can read `s3a://`. Resolved: PySpark 4.2.0 ships Hadoop 3.5.0 → `hadoop-aws` 3.5.0 + AWS SDK v2 `bundle` 2.35.4 + `analyticsaccelerator-s3` 1.3.1, downloaded with pinned SHA-1s to `$SPARK_S3A_JARS_DIR` (build arg `INSTALL_S3A_JARS=false` skips the ~650 MB bundle). Credentials: SDK v2 `DefaultCredentialsProvider`.
 
 ### Task 5 — Tests + commit
 `feat: add s3 raw layer and lake path conventions`.

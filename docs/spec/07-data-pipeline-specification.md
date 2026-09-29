@@ -88,9 +88,10 @@ Validation and transformation are separate Airflow tasks (required DAG shape). T
 │     datasets: customers, restaurants, delivery_partners, orders, payments, delivery,
 │               order_analytics, daily_order_metrics
 │     + processed/<dataset>/year=…/_manifest.json
-└── reports/
-    ├── data_quality/year=YYYY/month=MM/day=DD/<dataset>.json
-    └── audit/year=YYYY/month=MM/day=DD/<stage>__<dataset>.json   # stage results, inserted into pipeline_run_audit by pipeline_summary
+├── reports/
+│   ├── data_quality/year=YYYY/month=MM/day=DD/<dataset>.json
+│   └── audit/year=YYYY/month=MM/day=DD/<stage>__<dataset>.json   # stage results, inserted into pipeline_run_audit by pipeline_summary
+└── _tmp/<run_id>/<zone>/<dataset>/                                # run-scoped staging for partition replacement; emptied after publish
 ```
 
 - Partition date = **run (ingestion) date** (Airflow logical date `ds`). Example: `processed/orders/year=2026/month=09/day=29/`.
@@ -171,8 +172,8 @@ Spark runs in **local mode** (`local[*]`, driver memory `SPARK_DRIVER_MEMORY`, d
 
 | Layer | Mechanism |
 |---|---|
-| Raw | Deterministic path per (dataset, run date); file overwritten. |
-| Validated / quarantine / processed | Spark writes to a run-scoped temporary prefix, then `publish` replaces the run-date partition (delete + move). No partial partitions are left visible on failure. |
+| Raw | Deterministic path per (dataset, run date); partition replaced via `replace_partition`. |
+| Validated / quarantine / processed | Spark writes to a run-scoped temporary prefix (`_tmp/<run_id>/…`), then `replace_partition` replaces the run-date partition (delete target → copy staged files → delete staging). A failed writer never touches the existing partition; a failure during the short copy step is repaired by rerunning, and the processed `_manifest.json` (written last) marks a complete partition. |
 | Reports | JSON overwritten per (dataset, run date). |
 | Warehouse | Staging cleared per table before load (outside the upsert transaction — Redshift `TRUNCATE` commits implicitly, so `DELETE` is used inside transactions); UPDATE-then-INSERT by business key; stale-batch guard. |
 | Audit | Delete-then-insert per (run_id, dataset, stage). |
