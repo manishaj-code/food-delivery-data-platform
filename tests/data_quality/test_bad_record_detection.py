@@ -11,7 +11,7 @@ import pytest
 from src.common.exceptions import DataQualityThresholdError
 from src.common.storage import LocalStorage
 from src.validation.run_validation import validate_all
-from tests.data_quality.conftest import (
+from tests.sample_lake import (
     DAILY_RUN,
     ValidatedLake,
     ingest,

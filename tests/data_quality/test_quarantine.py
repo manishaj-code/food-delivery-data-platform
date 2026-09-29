@@ -7,7 +7,7 @@ import pytest
 from src.common.constants import DATASETS, INGESTION_METADATA_COLUMNS, SOURCE_COLUMNS
 from src.common.paths import Zone, partition_path, spark_uri
 from src.validation.run_validation import validate_all
-from tests.data_quality.conftest import HISTORICAL_RUN, ValidatedLake
+from tests.sample_lake import HISTORICAL_RUN, ValidatedLake
 
 pytestmark = pytest.mark.spark
 

@@ -152,6 +152,10 @@ Every processed dataset carries `source_ingestion_date DATE` and `_run_id STRING
 
 `order_date` on `delivery` is looked up from the related order (needed for `fact_delivery.order_date_key`).
 
+`order_analytics` derivations: `payment_status` = `SUCCESS` if the order has any SUCCESS payment, else the latest payment's status (NULL if none); `paid_amount` = sum of SUCCESS payment amounts (0.00 if none); `is_late` = `delivery_duration_minutes > 45` for completed deliveries, NULL otherwise. An order's payments and delivery are taken from the same batch (the source re-sends all three on every status change).
+
+**Lookups into `processed/`** (validation referential checks, current customer/restaurant attributes, order dates for deliveries) read only partitions dated **before** the run date, combined with the batch itself (batch wins). Rerunning an older date therefore gives the same result even after later dates were loaded. Implemented in `src/transformation/processed_reader.py`.
+
 ## 7. Transformation Rules (PySpark)
 
 | Rule | Applies to | Detail |

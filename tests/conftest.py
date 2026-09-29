@@ -7,6 +7,8 @@ import os
 
 import pytest
 
+from tests.sample_lake import validated_lake  # noqa: F401  (shared session fixture)
+
 
 @pytest.fixture(autouse=True)
 def _restore_root_logger():
@@ -62,6 +64,10 @@ def spark():
         .config("spark.sql.shuffle.partitions", "1")
         .config("spark.ui.enabled", "false")
         .config("spark.driver.memory", "1g")
+        # Test data is tiny: per-job planning dominates, so skip code generation and AQE
+        # (~40% faster suite). Production keeps Spark's defaults (src/common/spark.py).
+        .config("spark.sql.codegen.wholeStage", "false")
+        .config("spark.sql.adaptive.enabled", "false")
     )
     s3a_jars = os.environ.get("SPARK_S3A_JARS_DIR")
     if s3a_jars and os.path.isdir(s3a_jars):  # installed in the container image

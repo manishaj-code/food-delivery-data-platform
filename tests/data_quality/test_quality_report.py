@@ -18,7 +18,7 @@ from src.validation.report import (
 )
 from src.validation.rule_catalog import rules_for
 from src.validation.validator import ValidationOutcome
-from tests.data_quality.conftest import DAILY_RUN, HISTORICAL_RUN, ValidatedLake
+from tests.sample_lake import DAILY_RUN, HISTORICAL_RUN, ValidatedLake
 
 RUN_DATE = date(2026, 9, 29)
 

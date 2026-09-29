@@ -49,7 +49,9 @@ tests/unit/test_metric_calculations.py
 
 ## Files To Modify
 
-`src/common/constants.py` (processed schemas as `StructType` definitions if not already there).
+`src/common/constants.py` (typed column map). Processed `StructType` schemas live in `src/transformation/schemas.py` so `constants.py` (used by the generator) stays PySpark-free.
+
+**As implemented:** `src/transformation/processed_reader.py` (`read_processed`, `read_processed_keys`, `current_state`) was created in this phase, because incremental analytics need earlier customer/restaurant rows; validation now uses it too. Lookups read processed partitions before the run date only (deterministic reruns).
 
 ## Implementation Details
 

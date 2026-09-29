@@ -24,11 +24,11 @@ Phase 5 complete.
 ### Task 2 — Publish step
 `src/transformation/publish.py`: `publish_processed(run_date, run_id)` verifies each temp output (row count > 0 or expected NO_DATA, schema matches spec), replaces the run-date partition, writes `_manifest.json` (dataset, run_id, run_date, row_count, schema, source raw partition, created_at), deletes temp. Logs counts.
 
-### Task 3 — Processed readers
-`src/transformation/processed_reader.py`: `read_processed_keys(dataset, key_col)` across all partitions (empty DataFrame if none), `read_processed(dataset)`; used by validation (replace Phase 4 stub) and transforms (e.g. order dates for delivery).
+### Task 3 — Processed readers (done in Phase 5)
+`src/transformation/processed_reader.py` already provides `read_processed`, `read_processed_keys`, and `current_state` (partitions before the run date), used by validation and transformation. Phase 6 only verifies them against real published partitions (incl. `_manifest.json` being ignored by the Parquet reader).
 
-### Task 4 — Wire referential checks
-Update `src/validation/validator.py` and `src/transformation/facts.py` to use the reader.
+### Task 4 — Wire referential checks (done in Phase 5)
+Validation and `transform_job` already use the reader.
 
 ### Task 5 — Tests + commit
 `feat: add processed parquet layer`.
