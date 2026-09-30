@@ -10,12 +10,12 @@ Covers FR-110 – FR-114, FR-120, FR-126, FR-127.
 |---|---|
 | Hosting | GitHub repository `food-delivery-data-platform`. |
 | Branching | **GitHub Flow**: `main` is always releasable; short-lived branches `feat/…`, `fix/…`, `test/…`, `docs/…`, `ci/…`, `infra/…`; merge via pull request after CI passes. |
-| Protection | `main` protected: PR required, CI status checks (`lint-test`, `dag-integrity`, `docker-build`, `terraform-validate`) required, no force-push. |
+| Protection | `main` protected: PR required, CI status checks (`lint-test`, `dag-integrity`, `docker-build (pipeline)`, `docker-build (airflow)`, `terraform-validate`) required and up to date, applies to admins, no force-push. Repository is public (a free account cannot enforce protection on private repositories). |
 | Commits | Conventional Commits: `feat:`, `fix:`, `test:`, `docs:`, `ci:`, `infra:`, `refactor:`, `chore:`. One logical change per commit; at least one commit per phase (e.g. `feat: add synthetic food delivery data generator`). No single giant commit. |
 | Tags | Optional `v0.<phase>` tags at phase completion. |
 | Ignored | See spec 11 §9 `.gitignore`. |
 
-The working folder is not yet a Git repository; `git init` happens in Phase 1.
+Remote: `https://github.com/manishaj-code/food-delivery-data-platform` (public; created in Phase 12).
 
 ## 2. Docker
 
