@@ -1,0 +1,20 @@
+# Copy to terraform.tfvars (git-ignored) and adjust. Placeholders only; nothing here is secret.
+
+environment = "dev"
+aws_region  = "ap-south-1"
+
+# Your public IP as a /32 (e.g. from https://checkip.amazonaws.com). Never 0.0.0.0/0.
+allowed_cidr_blocks = ["203.0.113.7/32"]
+
+# Cost guardrails
+redshift_base_capacity             = 8
+redshift_usage_limit_rpu_hours     = 10
+redshift_usage_limit_breach_action = "deactivate"
+
+# Sandbox account (spec 09 §3.3.1): set after the capability check.
+create_pipeline_role    = false
+create_redshift_s3_role = true
+create_github_oidc      = false
+
+# github_repository = "manishaj-code/food-delivery-data-platform"
+# bucket_name       = "food-delivery-data-dev-123456789012"
