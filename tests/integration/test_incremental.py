@@ -8,13 +8,15 @@ and applied with the same upsert the pipeline uses.
 from __future__ import annotations
 
 from datetime import date, datetime
+from pathlib import Path
 
 import pytest
 
-from src.common.constants import DELIVERY_PARTNERS, ORDERS
+from src.common.constants import DATASETS, DELIVERY_PARTNERS, ORDERS
+from src.transformation.publish import read_manifest
 from src.warehouse.loader import LOAD_ORDER, load_warehouse, upsert_table
-from tests.integration.conftest import Warehouse
-from tests.sample_lake import DAILY_RUN, HISTORICAL_RUN, ValidatedLake
+from tests.integration.conftest import PipelineRuns, Warehouse
+from tests.sample_lake import DAILY_RUN, HISTORICAL_RUN, SAMPLE_DIR, ValidatedLake
 
 pytestmark = [pytest.mark.integration, pytest.mark.spark]
 
@@ -134,3 +136,29 @@ def test_status_update_modifies_the_existing_order(warehouse: Warehouse, daily_r
 
     assert (updated, inserted) == (0, 0)
     assert _order(warehouse, order_id)[1:3] == ("CANCELLED", LATER_BATCH)
+
+
+def _rows(path: Path) -> int:
+    return len(path.read_text(encoding="utf-8").splitlines()) - 1  # minus the header
+
+
+def test_the_daily_run_processes_only_its_own_date(pipeline_runs: PipelineRuns) -> None:
+    """FR-080 / AC-043, end to end: records read = the daily files, not the full history."""
+    records_in = {
+        (run_id, dataset): count
+        for run_id, dataset, count in pipeline_runs.warehouse.query(
+            "SELECT run_id, dataset, records_in FROM {schema}.pipeline_run_audit "
+            "WHERE stage = 'ingestion' AND run_id IN ('cli__test_historical', 'cli__test_daily')"
+        )
+    }
+    for dataset in DATASETS:
+        daily_file = SAMPLE_DIR / dataset / f"{dataset}_{DAILY_RUN.isoformat()}.csv"
+        historical_file = SAMPLE_DIR / dataset / f"{dataset}_historical.csv"
+        assert records_in["cli__test_daily", dataset] == _rows(daily_file), dataset
+        assert records_in["cli__test_historical", dataset] == _rows(historical_file), dataset
+
+    # The daily load only added the day's new orders on top of the historical ones.
+    manifests = [
+        read_manifest(pipeline_runs.storage, ORDERS, day) for day in (HISTORICAL_RUN, DAILY_RUN)
+    ]
+    assert pipeline_runs.warehouse.count("fact_order") == sum(m["row_count"] for m in manifests)

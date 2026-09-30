@@ -27,6 +27,7 @@ markers = [
     "spark: tests that start a local SparkSession",
     "integration: tests that need PostgreSQL or several components",
     "slow: long-running tests (e.g. full-volume data generation)",
+    "airflow: tests that need Apache Airflow (run in the Airflow image)",
     "aws: tests against real AWS (manual only)",
 ]
 filterwarnings = ["ignore::DeprecationWarning:pyspark.*"]
@@ -34,3 +35,9 @@ filterwarnings = ["ignore::DeprecationWarning:pyspark.*"]
 [tool.coverage.run]
 source = ["src"]
 branch = true
+
+[tool.coverage.report]
+# pytest --cov: master plan §5 target is >= 80% on the core packages
+show_missing = true
+fail_under = 80
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError"]

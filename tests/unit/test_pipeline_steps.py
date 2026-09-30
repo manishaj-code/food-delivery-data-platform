@@ -32,6 +32,8 @@ from src.warehouse.audit import AuditRecord
 from src.warehouse.loader import TableLoadResult
 from src.warehouse.post_load_checks import CheckResult
 
+pytestmark = pytest.mark.unit
+
 SAMPLE_DIR = Path(__file__).resolve().parents[2] / "data" / "sample"
 DAY = date(2026, 8, 31)
 RUN_ID = "manual__2026-08-31T00:00:00+00:00"

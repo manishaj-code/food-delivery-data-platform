@@ -10,6 +10,8 @@ from src import cli
 from src.common.constants import DATASETS
 from src.common.exceptions import SourceFileError
 
+pytestmark = pytest.mark.unit
+
 
 def test_pipeline_plan_matches_the_dag_order() -> None:
     task_ids = [task_id for task_id, _step, _kwargs in cli.pipeline_plan()]

@@ -18,6 +18,8 @@ import pytest
 
 from src.common.constants import DATASETS
 
+pytestmark = pytest.mark.unit
+
 DAG_FILE = Path(__file__).resolve().parents[2] / "airflow" / "dags" / "food_delivery_pipeline.py"
 DAG_ID = "food_delivery_pipeline"
 EXPECTED_ORDER = [
@@ -61,6 +63,7 @@ def dag():
     return bag.dags[DAG_ID]
 
 
+@pytest.mark.airflow
 def test_task_ids_and_chain(dag) -> None:
     """AC-040: the exact FR-070 chain, each task feeding only the next one."""
     assert sorted(dag.task_ids) == sorted(EXPECTED_ORDER)
@@ -69,6 +72,7 @@ def test_task_ids_and_chain(dag) -> None:
     assert dag.get_task("start").upstream_task_ids == set()
 
 
+@pytest.mark.airflow
 def test_retries_and_failure_callback(dag) -> None:
     """AC-041 / FR-072 / FR-074."""
     for task in dag.tasks:
@@ -77,6 +81,7 @@ def test_retries_and_failure_callback(dag) -> None:
     assert dag.get_task("ingest_orders").on_failure_callback
 
 
+@pytest.mark.airflow
 def test_schedule_and_run_limits(dag) -> None:
     """AC-041 / FR-076."""
     assert dag.schedule == "@daily"
@@ -87,6 +92,7 @@ def test_schedule_and_run_limits(dag) -> None:
     assert dag.start_date.date().isoformat() == "2026-08-31"
 
 
+@pytest.mark.airflow
 def test_load_type_param(dag) -> None:
     param = dag.params.get_param("load_type")
     assert param.value == "incremental"

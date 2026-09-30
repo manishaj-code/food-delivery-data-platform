@@ -1,36 +1,14 @@
-"""Loading the same run date twice changes nothing but ``updated_at`` (FR-092, AC-035)."""
+"""Rerunning the same date changes nothing but ``updated_at`` (FR-092, AC-033)."""
 
 from __future__ import annotations
 
 import pytest
 
-from src.warehouse.loader import LOAD_ORDER, load_warehouse
-from tests.integration.conftest import Warehouse
+from src.warehouse.loader import load_warehouse
+from tests.integration.conftest import PipelineRuns, Warehouse, business_rows
 from tests.sample_lake import HISTORICAL_RUN, ValidatedLake
 
 pytestmark = [pytest.mark.integration, pytest.mark.spark]
-
-TARGETS = [table for table in LOAD_ORDER if table.business_key]
-
-
-def _snapshot(warehouse: Warehouse) -> dict[str, list[tuple]]:
-    """Every dimension/fact row, all columns except ``updated_at``, ordered by business key."""
-    snapshot = {}
-    for table in TARGETS:
-        columns = [
-            name
-            for (name,) in warehouse.query(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_schema = %s AND table_name = %s ORDER BY ordinal_position",
-                (warehouse.schema, table.target),
-            )
-            if name != "updated_at"
-        ]
-        snapshot[table.target] = warehouse.query(
-            f"SELECT {', '.join(columns)} FROM {{schema}}.{table.target} "
-            f"ORDER BY {table.business_key}"
-        )
-    return snapshot
 
 
 def test_same_run_date_twice_gives_identical_rows(
@@ -42,9 +20,9 @@ def test_same_run_date_twice_gives_identical_rows(
         )
 
     load("test__first")
-    first = _snapshot(warehouse)
+    first = business_rows(warehouse)
     second_results = load("test__second")
-    second = _snapshot(warehouse)
+    second = business_rows(warehouse)
 
     assert second == first  # same rows, same surrogate keys, same created_at
     for result in second_results:
@@ -52,3 +30,13 @@ def test_same_run_date_twice_gives_identical_rows(
             assert result.rows_inserted == 0
             assert result.rows_updated == result.records_staged
             assert len(first[result.table]) == result.records_staged
+
+
+def test_full_pipeline_rerun_of_a_date_changes_nothing(pipeline_runs: PipelineRuns) -> None:
+    """Every step again for 2026-09-01 (new run_id): same lake files, rows, and values."""
+    first, rerun = pipeline_runs.after_daily, pipeline_runs.after_rerun
+
+    assert pipeline_runs.exit_codes["rerun"] == 0
+    assert rerun.lake_files == first.lake_files
+    assert rerun.table_counts == first.table_counts
+    assert rerun.rows == first.rows

@@ -12,6 +12,8 @@ from src.warehouse import analytics
 from src.warehouse.analytics import QUERIES, VIEWS, QueryResult, format_result, run_query
 from src.warehouse.sql_runner import SQL_DIR, render_sql
 
+pytestmark = pytest.mark.unit
+
 # Spec 02 §4.
 SPEC_QUERIES = (
     "01_daily_orders",
