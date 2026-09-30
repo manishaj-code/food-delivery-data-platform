@@ -9,7 +9,14 @@ import pytest
 
 from src.common.exceptions import ConfigError
 from src.warehouse import analytics
-from src.warehouse.analytics import QUERIES, VIEWS, QueryResult, format_result, run_query
+from src.warehouse.analytics import (
+    MONITORING_QUERIES,
+    QUERIES,
+    VIEWS,
+    QueryResult,
+    format_result,
+    run_query,
+)
 from src.warehouse.sql_runner import SQL_DIR, render_sql
 
 pytestmark = pytest.mark.unit
@@ -38,7 +45,15 @@ def test_the_15_spec_queries_exist() -> None:
     assert QUERIES == SPEC_QUERIES
 
 
-SQL_FILES = [f"analytics/{name}.sql" for name in QUERIES] + [
+def test_the_monitoring_queries_exist() -> None:
+    assert MONITORING_QUERIES == (
+        "monitoring/quality_trend",
+        "monitoring/recent_runs",
+        "monitoring/slowest_stages",
+    )
+
+
+SQL_FILES = [f"analytics/{name}.sql" for name in QUERIES + MONITORING_QUERIES] + [
     f"analytics/views/{view}.sql" for view in VIEWS
 ]
 
@@ -97,8 +112,9 @@ def test_main_prints_the_selected_query(monkeypatch, capsys) -> None:
 
     assert analytics.main(["--query", "08_top_restaurants"]) == 0
     assert analytics.main(["--all", "--limit", "1"]) == 0
+    assert analytics.main(["--monitoring"]) == 0
 
-    assert calls == [("08_top_restaurants",), QUERIES]
+    assert calls == [("08_top_restaurants",), QUERIES, MONITORING_QUERIES]
     assert "-- 08_top_restaurants (1 rows)" in capsys.readouterr().out
 
 

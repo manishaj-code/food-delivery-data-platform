@@ -44,13 +44,13 @@ Namespace `FoodDelivery/Pipeline`; dimensions `Environment`, `Dataset` (where ap
 |---|---|---|---|
 | RecordsIngested | Count | ingestion | Records written to raw per dataset. |
 | RecordsRejected | Count | validation | Records quarantined per dataset. |
-| RecordsProcessed | Count | transform/publish | Records written to processed per dataset. |
-| DataQualityScore | Percent | validation | Quality score per dataset. |
+| RecordsProcessed | Count | publish | Records published to processed per dataset (the verified manifest row count, all eight processed datasets). |
+| DataQualityScore | Percent | validation | Quality score per dataset (only for datasets with records; published before the quality gate, so a failing run still reports it). |
 | PipelineDurationSeconds | Seconds | pipeline_summary | Total run duration. |
 | PipelineSuccess | Count | pipeline_summary | 1 per successful run. |
 | PipelineFailure | Count | on_failure_callback | 1 per failed task. |
 
-Metric publishing failures are logged as WARNING and never fail the pipeline.
+Metric publishing failures are logged as WARNING and never fail the pipeline — the only place the project swallows an exception, by design (AC-074). `METRICS_ENABLED=false` (local) writes `METRIC name=value unit=… Environment=… [Dataset=…]` log lines; `true` sends `PutMetricData` (batches of ≤ 1,000, default AWS credential chain). `Environment` is `PIPELINE_ENV`, which must equal the Terraform `environment` for the alarms to match.
 
 ## 4. Pipeline Run Audit (`pipeline_run_audit`)
 
@@ -72,7 +72,14 @@ Metric publishing failures are logged as WARNING and never fail the pipeline.
 
 Grain: one row per `run_id` × `dataset` × `stage`; replaced on rerun (FR-093). Stages before the warehouse is reachable still produce audit records: they are written to `reports/audit/…/<stage>__<dataset>.json` in the lake and inserted into the table by `pipeline_summary` (so audit works even if the warehouse load fails later). Steps that cover several datasets write one row per dataset; a step-level failure is recorded with dataset `_pipeline` (removed when a retry of the step starts). On a failed run the failure callback writes the `pipeline` row with status `FAILED` (`error_message` = `<task_id>: <error>`) and, when the warehouse is reachable, inserts the run's records too.
 
-Useful queries (documented in `docs/monitoring.md`): last 7 runs status; quality score trend per dataset; slowest stages.
+Monitoring queries in `sql/analytics/monitoring/` (PostgreSQL and Redshift), run with `run-analytics --monitoring` or `--query monitoring/<name>`:
+- `recent_runs`: the last 7 runs' status
+- `quality_trend`: the quality score per dataset and run date, using the latest attempt per date
+- `slowest_stages`: average and maximum seconds per stage, with ingestion summed over its per-dataset tasks
+
+They are described further in `docs/monitoring.md` (Phase 15).
+
+Backfilling audit rows for a failed run: the failure callback inserts the run's records when the warehouse is reachable. When it is not (e.g. the load failed because Redshift was down), the rows stay in `reports/audit/…` in the lake. Clearing the failed tasks in Airflow reruns the same `run_id`, and its `pipeline_summary` then writes every row, replacing the `FAILED` pipeline row. `pipeline_summary` never marks a run with `FAILED` stage records as successful.
 
 ## 5. Monitored Signals
 

@@ -208,6 +208,69 @@ def test_a_successful_retry_removes_the_failed_step_record(env, monkeypatch) -> 
     assert audit(env, "validation", "orders")["status"] == "SUCCESS"
 
 
+# --- metrics (spec 12 §3) ------------------------------------------------------------------
+
+
+@pytest.fixture
+def sent(monkeypatch) -> list[tuple[str, float, str, dict]]:
+    """Metrics the steps publish, as (name, value, unit, dimensions)."""
+    metrics: list[tuple[str, float, str, dict]] = []
+    monkeypatch.setattr(
+        steps,
+        "publish_metrics",
+        lambda settings, batch: metrics.extend(
+            (m.name, m.value, m.unit, m.dimensions) for m in batch
+        ),
+    )
+    return metrics
+
+
+def test_ingest_publishes_records_ingested(env, sent) -> None:
+    result = steps.ingest_dataset("customers", **run_kwargs())
+
+    assert sent == [
+        ("RecordsIngested", result["records_written"], "Count", {"Dataset": "customers"})
+    ]
+
+
+def test_validation_metrics_are_published_even_when_the_gate_fails(env, monkeypatch, sent) -> None:
+    _fake_validation(
+        monkeypatch,
+        [
+            _report("customers", 100, 100, "PASSED"),
+            _report("orders", 100, 80, "FAILED"),
+            _report("delivery_partners", 0, 0, "NO_DATA"),
+        ],
+    )
+
+    with pytest.raises(DataQualityThresholdError):
+        steps.validate_data(**run_kwargs())
+
+    assert sent == [
+        ("RecordsRejected", 0, "Count", {"Dataset": "customers"}),
+        ("DataQualityScore", 100.0, "Percent", {"Dataset": "customers"}),
+        ("RecordsRejected", 20, "Count", {"Dataset": "orders"}),
+        ("DataQualityScore", 80.0, "Percent", {"Dataset": "orders"}),
+        ("RecordsRejected", 0, "Count", {"Dataset": "delivery_partners"}),  # no score: no data
+    ]
+
+
+def test_publish_reports_records_processed(env, monkeypatch, sent) -> None:
+    import src.transformation.publish
+
+    manifests = [
+        {"dataset": "orders", "row_count": 97},
+        {"dataset": "order_analytics", "row_count": 0},
+    ]
+    monkeypatch.setattr(src.transformation.publish, "publish_processed", lambda *args: manifests)
+
+    assert steps.publish_processed(**run_kwargs()) == {"orders": 97, "order_analytics": 0}
+    assert sent == [
+        ("RecordsProcessed", 97, "Count", {"Dataset": "orders"}),
+        ("RecordsProcessed", 0, "Count", {"Dataset": "order_analytics"}),
+    ]
+
+
 # --- load_warehouse / run_dq_checks --------------------------------------------------------
 
 
