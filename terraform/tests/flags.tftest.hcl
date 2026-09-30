@@ -72,6 +72,57 @@ run "sandbox_defaults" {
   }
 }
 
+run "monitoring" {
+  command = plan
+
+  assert {
+    condition = (
+      aws_cloudwatch_metric_alarm.pipeline_failure.alarm_name == "food-delivery-dev-pipeline-failure"
+      && aws_cloudwatch_metric_alarm.pipeline_failure.namespace == "FoodDelivery/Pipeline"
+      && aws_cloudwatch_metric_alarm.pipeline_failure.metric_name == "PipelineFailure"
+      && aws_cloudwatch_metric_alarm.pipeline_failure.statistic == "Sum"
+      && aws_cloudwatch_metric_alarm.pipeline_failure.period == 86400
+      && aws_cloudwatch_metric_alarm.pipeline_failure.threshold == 1
+      && aws_cloudwatch_metric_alarm.pipeline_failure.treat_missing_data == "notBreaching"
+    )
+    error_message = "Failure alarm must match spec 12 §6."
+  }
+
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.pipeline_failure.dimensions == tomap({ Environment = "dev" })
+    error_message = "Alarm dimensions must match what src/common/metrics.py publishes."
+  }
+
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.orders_quality[0].dimensions == tomap({ Environment = "dev", Dataset = "orders" })
+    error_message = "The quality alarm watches the orders dataset."
+  }
+
+  assert {
+    condition     = length(jsondecode(aws_cloudwatch_dashboard.pipeline[0].dashboard_body).widgets) == 6
+    error_message = "Dashboard: ingested, rejected, score, processed, duration, success/failure."
+  }
+}
+
+run "monitoring_optional_parts_off" {
+  command = plan
+
+  variables {
+    create_quality_alarm = false
+    create_dashboard     = false
+  }
+
+  assert {
+    condition     = length(aws_cloudwatch_metric_alarm.orders_quality) == 0 && length(aws_cloudwatch_dashboard.pipeline) == 0
+    error_message = "Quality alarm and dashboard are optional."
+  }
+
+  assert {
+    condition     = output.dashboard_url == null
+    error_message = "No dashboard, no URL."
+  }
+}
+
 run "normal_account_all_roles" {
   command = plan
 

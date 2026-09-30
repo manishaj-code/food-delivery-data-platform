@@ -14,6 +14,11 @@
 # The files are mounted at /opt/aws and pointed to explicitly, because the Airflow
 # container's arbitrary uid has no fixed home directory.
 
+#
+# Metrics: METRICS_ENABLED=true and PIPELINE_ENV=<terraform environment> in .env send them
+# to CloudWatch (the alarm matches on the Environment dimension); `terraform output -raw
+# env_file` prints both.
+
 x-aws: &aws
   environment:
     AWS_CONFIG_FILE: /opt/aws/config
@@ -23,4 +28,14 @@ x-aws: &aws
 
 services:
   pipeline: *aws
-  airflow: *aws
+  airflow:
+    <<: *aws
+    # Optional (spec 12 §1): ship Airflow task logs to the pipeline log group. Uncomment,
+    # merge into the environment above (YAML does not merge nested mappings), and set
+    # <region>/<account>. Needs logs:CreateLogStream/PutLogEvents/DescribeLogStreams/
+    # GetLogEvents on the group (the Terraform pipeline role has them).
+    # environment:
+    #   AIRFLOW__LOGGING__REMOTE_LOGGING: "True"
+    #   AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID: aws_default
+    #   AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER: "cloudwatch://arn:aws:logs:<region>:<account>:log-group:/food-delivery/dev/pipeline"
+    #   AIRFLOW_CONN_AWS_DEFAULT: "aws://?region_name=<region>"  # default credential chain

@@ -47,6 +47,39 @@ sql/analytics/monitoring/recent_runs.sql, quality_trend.sql, slowest_stages.sql
 tests/unit/test_metrics_publisher.py
 ```
 
+**As implemented (2026-09-30): built and tested locally; the AWS part is not applied (Phase 13 deferred).**
+
+- `src/common/metrics.py`:
+  - `Metric` dataclass
+  - `MetricsPublisher.publish(metrics)`
+  - `LogMetricsPublisher`, which writes the `METRIC …` lines
+  - `CloudWatchMetricsPublisher`, which calls `put_metric_data` in batches of up to 1,000 with a cached client per region
+  - `get_metrics_publisher()`, which picks the publisher from `METRICS_ENABLED`
+  - `publish_metrics()` and `publish_metric()`, which log errors as WARNING and swallow them
+- Steps emit:
+  - `RecordsIngested` from `ingest_dataset`
+  - `RecordsRejected` and `DataQualityScore` from `validate_data`, before the gate; there is no score for datasets without records
+  - `RecordsProcessed` from `publish_processed`, using the verified manifest counts
+  - `PipelineSuccess` and `PipelineDurationSeconds` from `pipeline_summary`, as one batch
+  - `PipelineFailure` from `record_failure`, which is unchanged
+- Task 3: audit completeness was already in place from Phase 9 (stage JSON on success and failure, `pipeline_summary` delete-then-insert, the failure path inserting when the warehouse is reachable). The backfill path is now documented in spec 12 §4.
+- Terraform (`cloudwatch.tf`):
+  - `food-delivery-dev-pipeline-failure`: `PipelineFailure` Sum ≥ 1 per day, missing data counts as not breaching
+  - optional `…-orders-quality`: orders `DataQualityScore` Minimum below 95
+  - optional dashboard with six widgets
+  - `alarm_actions` variable, empty by default (no SNS)
+  - outputs `failure_alarm_name` and `dashboard_url`
+  - `env_file` now also sets `PIPELINE_ENV=dev` and `METRICS_ENABLED=true`, because the alarm dimensions must match the published `Environment`
+  - the pipeline role gained `logs:DescribeLogStreams` and `logs:GetLogEvents` for optional Airflow remote logging
+  - `terraform test` now has 8 runs
+- Task 5: Airflow CloudWatch remote logging is documented as a commented block in `docker-compose.aws.yml`; it is not enabled.
+- Task 6: `sql/analytics/monitoring/{recent_runs,quality_trend,slowest_stages}.sql`, runnable through the analytics runner (`MONITORING_QUERIES`, `--monitoring`).
+- Tests:
+  - `test_metrics_publisher.py` uses botocore `Stubber` to check the exact namespace, dimensions and units, batching at the limit, and that a Throttling error becomes a WARNING. It also checks the factory and that an empty publish does nothing.
+  - `test_pipeline_steps.py` checks the metrics each step emits, including when the gate fails.
+  - `test_pipeline_e2e.py` checks the METRIC lines of a real run and runs the three monitoring queries against the e2e audit table.
+- Not verified yet (needs AWS): metrics in the CloudWatch console, and the alarm going to ALARM on a forced failure and back to OK. AC-072 and AC-073 stay open; AC-070, AC-071 and AC-074 pass locally.
+
 ## Files To Modify
 
 `src/pipeline/steps.py`, `src/pipeline/callbacks.py`, `src/warehouse/audit.py`, `terraform/cloudwatch.tf`, `terraform/outputs.tf`, `docker-compose.aws.yml`, `.env.example` (`METRICS_ENABLED`), `tests/integration/test_pipeline_e2e.py` (audit assertions).

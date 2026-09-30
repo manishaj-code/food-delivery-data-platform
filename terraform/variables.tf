@@ -159,3 +159,27 @@ variable "log_retention_days" {
   type        = number
   default     = 30
 }
+
+variable "alarm_actions" {
+  description = "ARNs notified on alarm state changes (e.g. an SNS topic). Empty: console only."
+  type        = list(string)
+  default     = []
+}
+
+variable "create_quality_alarm" {
+  description = "Alarm when the orders DataQualityScore drops below quality_alarm_threshold."
+  type        = bool
+  default     = true
+}
+
+variable "quality_alarm_threshold" {
+  description = "Orders quality score (%) below which the quality alarm fires (the DQ gate is 95)."
+  type        = number
+  default     = 95
+}
+
+variable "create_dashboard" {
+  description = "Create the CloudWatch pipeline dashboard."
+  type        = bool
+  default     = true
+}

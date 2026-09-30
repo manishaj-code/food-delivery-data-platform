@@ -54,9 +54,16 @@ data "aws_iam_policy_document" "pipeline" {
     }
   }
 
+  # Write for the pipeline; Describe/Get so optional Airflow remote logging can show the
+  # task logs it wrote (spec 12 §1).
   statement {
-    sid       = "Logs"
-    actions   = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    sid = "Logs"
+    actions = [
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:DescribeLogStreams",
+      "logs:GetLogEvents",
+    ]
     resources = ["${aws_cloudwatch_log_group.pipeline.arn}:*"]
   }
 }

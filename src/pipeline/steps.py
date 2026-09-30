@@ -26,7 +26,7 @@ from src.common.config import Settings, get_settings
 from src.common.constants import DATASETS, LOAD_TYPE_HISTORICAL, LOAD_TYPES
 from src.common.exceptions import ConfigError, PipelineError, SourceFileError
 from src.common.logging_config import log_context
-from src.common.metrics import publish_metric
+from src.common.metrics import Metric, dataset_metric, publish_metric, publish_metrics
 from src.common.paths import Zone, audit_path, date_partition
 from src.common.sources import CsvFileSource
 from src.common.storage import Storage, get_storage
@@ -265,10 +265,26 @@ def ingest_dataset(
             records_in=result.records_read,
             records_out=result.records_written,
         )
+        publish_metrics(
+            step.settings, [dataset_metric("RecordsIngested", result.records_written, dataset)]
+        )
         return result.to_dict()
 
 
 _REPORT_STATUS = {"PASSED": SUCCESS, "NO_DATA": NO_DATA, "FAILED": FAILED}
+
+
+def _validation_metrics(reports: list[dict[str, Any]]) -> list[Metric]:
+    """`RecordsRejected` per dataset, `DataQualityScore` where records were read."""
+    metrics = []
+    for report in reports:
+        dataset = report["dataset"]
+        metrics.append(dataset_metric("RecordsRejected", report["invalid_records"], dataset))
+        if report["total_records"]:
+            metrics.append(
+                dataset_metric("DataQualityScore", report["quality_score"], dataset, "Percent")
+            )
+    return metrics
 
 
 def validate_data(run_date: date | str, run_id: str, load_type: str) -> dict[str, Any]:
@@ -294,6 +310,8 @@ def validate_data(run_date: date | str, run_id: str, load_type: str) -> dict[str
                 records_rejected=report["invalid_records"],
                 quality_score=report["quality_score"],
             )
+        # Before the gate, so a failing run still reports its scores.
+        publish_metrics(step.settings, _validation_metrics(reports))
         enforce_threshold(reports, step.settings.dq_min_quality_score)
         return {
             report["dataset"]: {
@@ -333,6 +351,10 @@ def publish_processed(run_date: date | str, run_id: str, load_type: str) -> dict
         for manifest in manifests:
             count = manifest["row_count"]
             step.record(manifest["dataset"], SUCCESS if count else NO_DATA, records_out=count)
+        publish_metrics(
+            step.settings,
+            [dataset_metric("RecordsProcessed", m["row_count"], m["dataset"]) for m in manifests],
+        )
         return {manifest["dataset"]: manifest["row_count"] for manifest in manifests}
 
 
@@ -446,9 +468,12 @@ def pipeline_summary(run_date: date | str, run_id: str, load_type: str) -> dict[
         save_audit(step.storage, pipeline)
         rows = _write_run_audit(step.settings, [*stages, pipeline])
         _log_summary([*stages, pipeline])
-        publish_metric(step.settings, "PipelineSuccess", 1)
-        publish_metric(
-            step.settings, "PipelineDurationSeconds", pipeline.duration_seconds or 0, "Seconds"
+        publish_metrics(
+            step.settings,
+            [
+                Metric("PipelineSuccess", 1),
+                Metric("PipelineDurationSeconds", pipeline.duration_seconds or 0, "Seconds"),
+            ],
         )
         logger.info(
             "Pipeline completed successfully (load_type=%s, duration=%.2fs, audit rows=%d)",

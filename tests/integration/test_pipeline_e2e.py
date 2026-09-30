@@ -16,6 +16,7 @@ from src.common.constants import DATASETS
 from src.common.paths import Zone, partition_path, raw_file_path, report_path
 from src.transformation.publish import read_manifest
 from src.transformation.schemas import PROCESSED_SCHEMAS
+from src.warehouse.analytics import run_query
 from src.warehouse.loader import LOAD_ORDER
 from tests.integration.conftest import BROKEN_DATE, PipelineRuns
 from tests.sample_lake import DAILY_RUN, HISTORICAL_RUN, manifest
@@ -63,6 +64,47 @@ def test_required_log_messages_with_run_context(pipeline_runs: PipelineRuns) -> 
     failure = [line for line in lines if "Pipeline failed at task ingest_orders" in line]
     assert failure and " - ERROR - " in failure[0]
     assert "run_id=cli__test_broken run_date=2026-09-02" in failure[0]
+
+
+def test_metrics_are_emitted_as_log_lines_in_local_mode(pipeline_runs: PipelineRuns) -> None:
+    """Spec 12 §3 with METRICS_ENABLED=false: every metric of a run appears as a METRIC line."""
+    lines = pipeline_runs.log_lines
+    daily = [line for line in lines if "run_id=cli__test_daily " in line and "METRIC " in line]
+    for expected in (
+        "METRIC RecordsIngested=",
+        "METRIC RecordsRejected=",
+        "METRIC DataQualityScore=",
+        "METRIC RecordsProcessed=",
+        "METRIC PipelineSuccess=1 ",
+        "METRIC PipelineDurationSeconds=",
+    ):
+        assert any(expected in line for line in daily), expected
+    assert any("unit=Percent Environment=local Dataset=orders" in line for line in daily)
+    broken = [line for line in lines if "run_id=cli__test_broken " in line]
+    assert any("METRIC PipelineFailure=1" in line for line in broken)
+
+
+def test_monitoring_queries_on_the_audit_table(pipeline_runs: PipelineRuns) -> None:
+    """Spec 12 §4: recent runs, quality trend (latest attempt per date), slowest stages."""
+    conn, schema = pipeline_runs.warehouse.conn, pipeline_runs.warehouse.schema
+
+    recent = run_query(conn, schema, "monitoring/recent_runs").as_dicts()
+    assert [row["run_id"] for row in recent][0] == "cli__test_broken"  # newest first
+    assert sorted(row["status"] for row in recent) == ["FAILED", "SUCCESS", "SUCCESS", "SUCCESS"]
+
+    trend = run_query(conn, schema, "monitoring/quality_trend").as_dicts()
+    keys = [(row["dataset"], row["run_date"]) for row in trend]
+    assert len(keys) == len(set(keys))  # one row per dataset and date
+    orders = {row["run_date"]: row for row in trend if row["dataset"] == "orders"}
+    assert orders[DAILY_RUN]["run_id"] == "cli__test_daily_rerun"  # the latest attempt
+    assert 95 <= orders[HISTORICAL_RUN]["quality_score"] < 100
+
+    stages = run_query(conn, schema, "monitoring/slowest_stages").as_dicts()
+    runs = {row["stage"]: row["runs"] for row in stages}
+    assert runs["ingestion"] == 4 and runs["validation"] == 3  # broken run stopped at ingestion
+    assert [row["avg_seconds"] for row in stages] == sorted(
+        (row["avg_seconds"] for row in stages), reverse=True
+    )
 
 
 def test_raw_zone_has_every_dataset_for_each_run(pipeline_runs: PipelineRuns) -> None:

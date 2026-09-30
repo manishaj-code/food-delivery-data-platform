@@ -4,7 +4,7 @@
 
 > An automated end-to-end data engineering platform for processing food delivery orders, customers, restaurants, payments, and delivery data using Python, PySpark, AWS S3, Amazon Redshift, Airflow, Docker, Terraform, and GitHub Actions.
 
-**Status:** Phase 13 of 15 complete. CI/CD runs on GitHub Actions. The Terraform for the AWS `dev` environment is written and validated (fmt, validate, and mocked `terraform test`) but not yet applied. Built so far: synthetic data, raw ingestion, local/S3 lake storage, PySpark data quality and transformations, verified processed Parquet layer, star-schema warehouse (Redshift DDL + local PostgreSQL) with idempotent upserts and post-load checks, 15 analytics queries and 6 Power BI views, Airflow 3 orchestration and a CLI, hardened Docker images and Compose environment, and an automated test suite (unit, data quality, integration, end-to-end; 96% coverage). The full README is written in Phase 15.
+**Status:** Phase 14 of 15 complete. CI/CD runs on GitHub Actions. The Terraform for the AWS `dev` environment is written and validated (fmt, validate, and mocked `terraform test`) but not yet applied. Monitoring covers pipeline metrics (log lines locally, CloudWatch in AWS mode), a failure alarm, a dashboard, and audit-table monitoring queries. Built so far: synthetic data, raw ingestion, local/S3 lake storage, PySpark data quality and transformations, verified processed Parquet layer, star-schema warehouse (Redshift DDL + local PostgreSQL) with idempotent upserts and post-load checks, 15 analytics queries and 6 Power BI views, Airflow 3 orchestration and a CLI, hardened Docker images and Compose environment, and an automated test suite (unit, data quality, integration, end-to-end; 96% coverage). The full README is written in Phase 15.
 
 ## Documentation
 
@@ -52,6 +52,10 @@ docker compose run --rm pipeline generate-data --mode incremental --date 2026-09
 docker compose run --rm pipeline init-warehouse
 docker compose run --rm pipeline run-pipeline --run-date 2026-08-31 --load-type historical
 docker compose run --rm pipeline run-pipeline --run-date 2026-09-01
+
+# Analytics and pipeline monitoring (pipeline_run_audit) queries
+docker compose run --rm pipeline run-analytics --query 08_top_restaurants
+docker compose run --rm pipeline run-analytics --monitoring
 
 # Lint and tests (override the entrypoint); integration tests use the postgres service
 docker compose run --rm --entrypoint sh pipeline -c "ruff check . && ruff format --check . && pytest"

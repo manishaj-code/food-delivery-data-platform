@@ -47,11 +47,26 @@ output "log_group_name" {
   value = aws_cloudwatch_log_group.pipeline.name
 }
 
+output "failure_alarm_name" {
+  value = aws_cloudwatch_metric_alarm.pipeline_failure.alarm_name
+}
+
+output "dashboard_url" {
+  description = "CloudWatch console link of the pipeline dashboard; null when create_dashboard = false."
+  value = (
+    var.create_dashboard
+    ? "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards/dashboard/${aws_cloudwatch_dashboard.pipeline[0].dashboard_name}"
+    : null
+  )
+}
+
 output "env_file" {
   description = "AWS-mode lines for the untracked .env (terraform output -raw env_file)."
   value       = <<-EOT
+    PIPELINE_ENV=${var.environment}
     STORAGE_MODE=s3
     WAREHOUSE_TYPE=redshift
+    METRICS_ENABLED=true
     AWS_REGION=${var.aws_region}
     S3_BUCKET=${aws_s3_bucket.lake.bucket}
     REDSHIFT_HOST=${aws_redshiftserverless_workgroup.warehouse.endpoint[0].address}

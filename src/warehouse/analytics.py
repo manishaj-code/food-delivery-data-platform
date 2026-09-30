@@ -7,6 +7,7 @@ Demo usage::
 
     python -m src.warehouse.analytics --query 08_top_restaurants
     python -m src.warehouse.analytics --all
+    python -m src.warehouse.analytics --monitoring      # pipeline_run_audit health queries
 """
 
 from __future__ import annotations
@@ -38,6 +39,10 @@ VIEWS = (
     "vw_payment_summary",
 )
 QUERIES = tuple(sorted(path.stem for path in (SQL_DIR / "analytics").glob("[0-9][0-9]_*.sql")))
+# Pipeline health over ``pipeline_run_audit`` (spec 12 §4), e.g. ``monitoring/recent_runs``.
+MONITORING_QUERIES = tuple(
+    sorted(f"monitoring/{path.stem}" for path in (SQL_DIR / "analytics/monitoring").glob("*.sql"))
+)
 
 
 @dataclass(frozen=True)
@@ -59,8 +64,9 @@ def create_views(conn: Any, schema: str) -> None:
 
 def run_query(conn: Any, schema: str, name: str) -> QueryResult:
     """Run ``sql/analytics/<name>.sql`` (e.g. ``08_top_restaurants``); only known names run."""
-    if name not in QUERIES:
-        raise ConfigError("Unknown analytics query", query=name, available=list(QUERIES))
+    if name not in QUERIES + MONITORING_QUERIES:
+        available = [*QUERIES, *MONITORING_QUERIES]
+        raise ConfigError("Unknown analytics query", query=name, available=available)
     sql = render_sql(f"analytics/{name}.sql", schema)
     with translate_errors(f"analytics query {name}"), conn.cursor() as cursor:
         cursor.execute(sql)
@@ -99,14 +105,21 @@ def run_analytics(settings: Settings, names: Sequence[str], conn: Any = None) ->
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the analytics SQL against the warehouse.")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--query", choices=QUERIES, help="query name, e.g. 08_top_restaurants")
+    group.add_argument(
+        "--query",
+        choices=QUERIES + MONITORING_QUERIES,
+        help="query name, e.g. 08_top_restaurants or monitoring/recent_runs",
+    )
     group.add_argument("--all", action="store_true", help="run all 15 queries")
+    group.add_argument(
+        "--monitoring", action="store_true", help="run the pipeline monitoring queries"
+    )
     parser.add_argument("--limit", type=int, default=25, help="rows to print per query")
     args = parser.parse_args(argv)
 
     settings = load_settings()
     configure_logging(settings.log_level)
-    names = QUERIES if args.all else (args.query,)
+    names = QUERIES if args.all else MONITORING_QUERIES if args.monitoring else (args.query,)
     for result in run_analytics(settings, names):
         sys.stdout.write(format_result(result, args.limit) + "\n\n")
     return 0
