@@ -43,6 +43,16 @@ Document commands (README draft section); optional `Makefile`-free approach — 
 docker-compose.aws.yml (AWS-mode override: ~/.aws:ro mount, AWS env)
 ```
 
+**As implemented:**
+
+- Pipeline `Dockerfile` has three stages: `base` (Java 21, s3a jars, `requirements.txt`, code, `app` user, entrypoint), `dev` (+ `requirements-dev.txt`, `tests/`, `data/sample/`) and `runtime` (= `base`, the last stage, so a plain `docker build .` — and CI — produces the lean image). Compose builds `target: dev` so `--entrypoint pytest` works. Bases pinned: `python:3.12.14-slim-trixie`, `eclipse-temurin:21.0.12.1_1-jre`, `apache/airflow:3.3.2-python3.12`, `postgres:16.10`.
+- `JAVA_HOME=/usr/lib/jvm/java-21`, an arch-independent symlink to Debian's `java-21-openjdk-<arch>`. Code is owned by root (read-only for `app`); empty `lake/` and `data/generated/` owned by `app` let the image run without mounts.
+- The s3a jar download moved to `docker/install_s3a_jars.py`, shared by both images (Airflow image now has the jars for AWS mode). `INSTALL_S3A_JARS=false` skips them.
+- Airflow image copies `src/`, `scripts/`, `sql/`, `airflow/dags/`, `bootstrap.py` into `/opt/project` (group 0, readable by any `AIRFLOW_UID`); Compose bind-mounts the repository over it. Airflow constraints file still not used — `apache-airflow` pinned instead (see Phase 9 notes, TR-02).
+- `pipeline` is not in a Compose profile: `docker compose build` then builds both images (spec 10 §6), and `docker compose up` just prints the CLI help. No `docker/postgres/init.sql` (Phase 9: `airflow-init` creates the metadata database).
+- `docker-compose.aws.yml` mounts `~/.aws` read-only at `/opt/aws` for `pipeline` and `airflow` and sets `AWS_CONFIG_FILE`/`AWS_SHARED_CREDENTIALS_FILE` (the Airflow container's arbitrary uid has `HOME=/`). It does not switch modes: `STORAGE_MODE`/`WAREHOUSE_TYPE` stay in `.env` (NFR-017).
+- `tests/unit/test_docker_config.py`: pinned bases, non-root final `USER`, CLI entrypoint, no secrets copied, `.dockerignore` patterns.
+
 ## Files To Modify
 
 `Dockerfile`, `docker/airflow/Dockerfile`, `docker-compose.yml`, `docker/postgres/init.sql`, `.env.example`, `README.md` (Docker section draft).

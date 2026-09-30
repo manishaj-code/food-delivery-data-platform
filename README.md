@@ -2,7 +2,7 @@
 
 > An automated end-to-end data engineering platform for processing food delivery orders, customers, restaurants, payments, and delivery data using Python, PySpark, AWS S3, Amazon Redshift, Airflow, Docker, Terraform, and GitHub Actions.
 
-**Status:** Phase 9 of 15 complete — synthetic data, raw ingestion, local/S3 lake storage, PySpark data quality and transformations, verified processed Parquet layer, star-schema warehouse (Redshift DDL + local PostgreSQL) with idempotent upserts and post-load checks, 15 analytics queries and 6 Power BI views, Airflow 3 orchestration and a CLI. The full README is written in Phase 15.
+**Status:** Phase 10 of 15 complete — synthetic data, raw ingestion, local/S3 lake storage, PySpark data quality and transformations, verified processed Parquet layer, star-schema warehouse (Redshift DDL + local PostgreSQL) with idempotent upserts and post-load checks, 15 analytics queries and 6 Power BI views, Airflow 3 orchestration and a CLI, hardened Docker images and Compose environment. The full README is written in Phase 15.
 
 ## Documentation
 
@@ -20,37 +20,63 @@ flowchart LR
     AF{{Airflow}} -.orchestrates.-> ING & VAL & ETL & RS
 ```
 
-## Quick start (Phase 1)
+## Quick start (Docker)
 
-Requirements: Docker Desktop (WSL2 backend on Windows).
-
-```bash
-cp .env.example .env                       # required (local warehouse password); never commit .env
-docker compose build pipeline
-
-# Generate the full historical dataset (~100k orders) into data/generated/
-docker compose run --rm pipeline python -m scripts.generate_data --mode historical
-
-# Generate one daily increment
-docker compose run --rm pipeline python -m scripts.generate_data --mode incremental --date 2026-09-01
-
-# Lint and tests
-docker compose run --rm pipeline sh -c "ruff check . && ruff format --check . && pytest tests/unit"
-```
-
-### Run the pipeline
+Requirements: Docker Desktop (WSL2 backend on Windows). On an 8 GB machine, limit WSL2 in
+`%UserProfile%\.wslconfig` (`[wsl2]` `memory=5GB`, `swap=4GB`).
 
 ```bash
-# CLI (no Airflow): same steps as the DAG
-docker compose run --rm pipeline python -m src.cli init-warehouse
-docker compose run --rm pipeline python -m src.cli run-pipeline --run-date 2026-08-31 --load-type historical
-docker compose run --rm pipeline python -m src.cli run-pipeline --run-date 2026-09-01
-
-# Airflow 3 UI at http://localhost:8080 (login: AIRFLOW_ADMIN_USERNAME / AIRFLOW_ADMIN_PASSWORD from .env)
-docker compose up -d airflow
-# Trigger food_delivery_pipeline with logical date 2026-08-31 and {"load_type": "historical"} first,
-# then daily runs (2026-09-01, …). Unpausing the DAG also starts today's scheduled run.
-docker compose stop airflow   # frees ~2 GB when only the CLI/tests are needed
+cp .env.example .env         # required; set AIRFLOW_FERNET_KEY (command in the file). Never commit .env
+docker compose build         # pipeline (dev target) + Airflow images
 ```
+
+| Service | What it is |
+|---|---|
+| `postgres` | PostgreSQL 16: local warehouse (`warehouse`) + Airflow metadata (`airflow`) databases |
+| `airflow-init` | one-off: creates/migrates the Airflow metadata database |
+| `airflow` | Airflow 3 (`airflow standalone`), UI at http://localhost:8080 |
+| `pipeline` | run-only CLI container; its entrypoint is `python -m src.cli` |
+
+The pipeline image runs `python -m src.cli`, so pass CLI commands straight to it:
+
+```bash
+docker compose run --rm pipeline --help
+
+# Synthetic source data into data/generated/: full history (~100k orders), then one day
+docker compose run --rm pipeline generate-data --mode historical
+docker compose run --rm pipeline generate-data --mode incremental --date 2026-09-01
+
+# Pipeline without Airflow (same steps as the DAG)
+docker compose run --rm pipeline init-warehouse
+docker compose run --rm pipeline run-pipeline --run-date 2026-08-31 --load-type historical
+docker compose run --rm pipeline run-pipeline --run-date 2026-09-01
+
+# Lint and tests (override the entrypoint)
+docker compose run --rm --entrypoint sh pipeline -c "ruff check . && ruff format --check . && pytest"
+```
+
+### Airflow
+
+```bash
+docker compose up -d          # postgres, airflow-init, airflow; healthy in ~2 minutes
+docker compose ps             # airflow: (healthy)
+```
+
+Log in with `AIRFLOW_ADMIN_USERNAME` / `AIRFLOW_ADMIN_PASSWORD` from `.env`. Trigger
+`food_delivery_pipeline` with logical date 2026-08-31 and `{"load_type": "historical"}` first,
+then daily runs (2026-09-01, …). Unpausing the DAG also starts today's scheduled run.
+`docker compose stop airflow` frees ~2 GB when only the CLI/tests are needed;
+`docker compose down -v` removes everything including the database volume.
+
+### Notes
+
+- The repository is bind-mounted into the containers, so code and DAG changes need no
+  rebuild; `lake/`, `data/` and `airflow/logs/` are written by uid 1000 (`AIRFLOW_UID`).
+  For faster file access on Windows, clone the repository inside the WSL2 filesystem.
+- Images contain no `.env` or credentials and run as non-root users. For AWS mode, set
+  `STORAGE_MODE=s3`, `WAREHOUSE_TYPE=redshift` and the AWS settings in `.env`, and add the
+  read-only `~/.aws` mount: `docker compose -f docker-compose.yml -f docker-compose.aws.yml …`.
+- `docker build .` builds the production `runtime` target (application code only, no dev
+  tools); `--build-arg INSTALL_S3A_JARS=false` skips the ~650 MB S3 connector jars.
 
 A small deterministic sample dataset (historical + 2026-09-01 + 2026-09-02) is committed in [`data/sample/`](data/sample/).
