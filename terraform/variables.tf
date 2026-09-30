@@ -32,6 +32,25 @@ variable "bucket_force_destroy" {
   default     = true
 }
 
+# --------------------------------------------------------------------------- Network
+
+variable "vpc_id" {
+  description = "Existing VPC for Redshift. null: the region's default VPC (not every account has one)."
+  type        = string
+  default     = null
+}
+
+variable "subnet_ids" {
+  description = "Subnets for the workgroup (public, routed to an internet gateway, 2+ AZs). null: all subnets of the VPC."
+  type        = list(string)
+  default     = null
+
+  validation {
+    condition     = var.subnet_ids == null || length(coalesce(var.subnet_ids, [])) >= 2
+    error_message = "subnet_ids needs at least two subnets in different Availability Zones."
+  }
+}
+
 # --------------------------------------------------------------------------- Redshift
 
 variable "database_name" {

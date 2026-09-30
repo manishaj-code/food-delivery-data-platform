@@ -109,6 +109,36 @@ run "no_iam_roles" {
   }
 }
 
+run "existing_vpc_without_default" {
+  command = plan
+
+  variables {
+    vpc_id     = "vpc-0123456789abcdef0"
+    subnet_ids = ["subnet-0123456789abcdef0", "subnet-0123456789abcdef1"]
+  }
+
+  assert {
+    condition     = aws_security_group.redshift.vpc_id == "vpc-0123456789abcdef0"
+    error_message = "The security group belongs to the chosen VPC."
+  }
+
+  assert {
+    condition     = toset(aws_redshiftserverless_workgroup.warehouse.subnet_ids) == toset(var.subnet_ids)
+    error_message = "The workgroup uses exactly the chosen subnets."
+  }
+}
+
+run "rejects_single_subnet" {
+  command = plan
+
+  variables {
+    vpc_id     = "vpc-0123456789abcdef0"
+    subnet_ids = ["subnet-0123456789abcdef0"]
+  }
+
+  expect_failures = [var.subnet_ids]
+}
+
 run "rejects_open_cidr" {
   command = plan
 

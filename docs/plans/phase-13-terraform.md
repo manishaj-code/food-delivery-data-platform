@@ -56,6 +56,36 @@ terraform/terraform.tfvars.example
 tests/integration/test_aws_smoke.py (marker aws)
 ```
 
+**As implemented (2026-09-30): written and validated, not applied.**
+
+- The code follows spec 09. `s3.tf`:
+  - private bucket, SSE-S3, ACLs disabled
+  - TLS-only bucket policy
+  - expiry lifecycle for `_tmp/` 1d, `validated/` 7d, `quarantine/` 90d, `reports/` 365d, plus aborting incomplete multipart uploads after 7d
+  - `force_destroy` on by default, since the lake is reproducible
+- `redshift.tf`:
+  - namespace with `manage_admin_password`
+  - 8 RPU workgroup, publicly accessible, with a security group allowing 5439 only from `allowed_cidr_blocks`
+  - daily 10 RPU-hour usage limit with `deactivate` on breach
+- `iam.tf`: the pipeline, Redshift S3-read (`processed/` only) and GitHub OIDC deploy roles, each behind its `create_*` flag. The deploy role trusts `environment:dev` and `ref:refs/heads/main`. Its permissions are scoped by project name where AWS allows it; Redshift Serverless and EC2 security-group actions are scoped by service.
+- `cloudwatch.tf` holds the log group. `outputs.tf` includes `env_file`, the AWS-mode `.env` lines; no password is ever output.
+- Network: `vpc_id`/`subnet_ids` variables (default: the default VPC). They were added after the capability check found no default VPC in the target region.
+- `terraform/tests/flags.tftest.hcl` runs `terraform test` against a mocked AWS provider, so no account is needed. Six runs: sandbox defaults, all roles, no roles (its `env_file` switches to `REDSHIFT_COPY_AUTH=session`), existing VPC, and rejection of a single subnet and of `0.0.0.0/0`. The CI `terraform-validate` job runs it. It caught a `coalesce()` failure in `env_file` when the COPY role is off.
+- `tests/integration/test_aws_smoke.py` (marker `aws`): an S3 write/read/delete through the storage layer, plus Redshift `SELECT 1` and `dim_date` = 1095. It skips itself unless in AWS mode.
+- Task 0 (read-only probe, no resources created): the credentials belong to a shared organisation account (SSO role `sagemaker-dev`), not a wiped sandbox. The user chose us-east-1.
+  - All service APIs (S3, Redshift Serverless, Secrets Manager, IAM, Logs, CloudWatch, EC2) are readable.
+  - There is no default VPC in us-east-1 (14 other VPCs exist), and no project names collide.
+  - `iam:SimulatePrincipalPolicy` is denied, so write permissions are unproven.
+  - The user reports S3, Redshift Serverless, IAM role and Secrets Manager permissions.
+- **Deferred at the user's request:** Tasks 6–9 (apply, `.env`, first AWS run, OIDC workflow, destroy/re-apply) and ACs 008, 037, 055, 063, 064 (the AWS part), 065 (after apply), 072, 073. To resume:
+  1. Refresh the credentials.
+  2. Choose the network: the shared `sandbox-VPC-vpc` public subnets, a new VPC, or another VPC.
+  3. Copy `terraform.tfvars.example` and set `allowed_cidr_blocks` to your own IP.
+  4. `plan` → review → `apply`.
+  5. `init-warehouse`, then a historical and one daily run with `docker-compose.aws.yml`.
+  6. `pytest -m aws`.
+  7. `terraform destroy` (a shared account is not wiped).
+
 ## Files To Modify
 
 `.env.example` (AWS-mode values documented), `docker-compose.aws.yml`, `.github/workflows/deploy.yml` (backend config if remote state chosen), `src/common/storage.py`/`spark.py`/`connection.py` only if real-AWS issues appear.

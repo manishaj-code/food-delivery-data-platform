@@ -28,7 +28,7 @@ Probability / Impact scale: **L**ow, **M**edium, **H**igh.
 | A-18 | The project package is imported as `src.*` (e.g. `src.ingestion`) to match the required folder layout. | Avoids extra package nesting. |
 | A-19 | Status updates to earlier orders appear as full records with the same business key in later daily files. | Simplest change-data representation for CSV sources. |
 | A-20 | The Terraform-created AWS environment is created only for demonstrations and destroyed afterwards. | Cost control. |
-| A-21 | AWS deployment target is a temporary sandbox account (IAM user creation not possible; temporary credentials; possible service/IAM restrictions; account wiped at session end). | User constraint. Handled by Terraform feature flags (spec 09 §3.3.1). |
+| A-21 | AWS deployment target is a temporary sandbox account (IAM user creation not possible; temporary credentials; possible service/IAM restrictions; account wiped at session end). | User constraint. Handled by Terraform feature flags (spec 09 §3.3.1). **Update 2026-09-30:** the credentials provided are for a shared organisation account (SSO role, temporary credentials, region us-east-1, no default VPC; other teams' resources present), not a wiped sandbox, so cleanup relies on `terraform destroy`. The user deferred the real AWS apply; Phase 13 is validated but not applied. |
 | A-22 | Development host: Windows 11 Home, ~8 GB RAM, Docker Desktop on the WSL2 backend (Home edition supports only WSL2; `wsl --status` shows version 2). | Verified 2026-09-29. Drives the low-memory choices in TR-03. |
 | A-23 | Local folder stays `food-delivery-pipeline`; GitHub repository and project name are `food-delivery-data-platform`. | Confirmed by user. |
 

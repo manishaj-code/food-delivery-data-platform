@@ -4,7 +4,7 @@
 resource "aws_security_group" "redshift" {
   name        = "${local.name_prefix}-redshift"
   description = "Redshift Serverless: 5439 from the allowed CIDR blocks only"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = data.aws_vpc.selected.id
 }
 
 resource "aws_vpc_security_group_ingress_rule" "redshift" {
@@ -43,7 +43,7 @@ resource "aws_redshiftserverless_workgroup" "warehouse" {
   namespace_name      = aws_redshiftserverless_namespace.warehouse.namespace_name
   base_capacity       = var.redshift_base_capacity
   publicly_accessible = true
-  subnet_ids          = data.aws_subnets.default.ids
+  subnet_ids          = local.subnet_ids
   security_group_ids  = [aws_security_group.redshift.id]
 }
 

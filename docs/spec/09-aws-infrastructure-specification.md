@@ -113,7 +113,7 @@ Because the account is wiped at session end: local Terraform state is disposable
 
 ## 4. Networking
 
-- Default VPC and its subnets (no custom VPC, NAT, or VPN — cost and complexity).
+- Default VPC and its subnets (no custom VPC, NAT, or VPN — cost and complexity). Accounts without a default VPC (e.g. the Phase 13 target account in us-east-1) set `vpc_id` and `subnet_ids` to an existing VPC's public subnets (≥ 2 AZs, internet-gateway route); Terraform then only adds the workgroup's security group to that VPC.
 - One security group for the workgroup: inbound TCP 5439 from `allowed_cidr_blocks`; outbound all.
 - S3 accessed over public AWS endpoints with TLS.
 

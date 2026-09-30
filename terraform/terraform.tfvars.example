@@ -1,7 +1,12 @@
 # Copy to terraform.tfvars (git-ignored) and adjust. Placeholders only; nothing here is secret.
 
 environment = "dev"
-aws_region  = "ap-south-1"
+aws_region  = "us-east-1"
+
+# Accounts without a default VPC: an existing VPC and its public subnets (2+ AZs, routed
+# to an internet gateway). Terraform only adds a security group there.
+# vpc_id     = "vpc-0123456789abcdef0"
+# subnet_ids = ["subnet-0123456789abcdef0", "subnet-0123456789abcdef1", "subnet-0123456789abcdef2"]
 
 # Your public IP as a /32 (e.g. from https://checkip.amazonaws.com). Never 0.0.0.0/0.
 allowed_cidr_blocks = ["203.0.113.7/32"]
