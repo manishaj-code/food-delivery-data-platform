@@ -1,58 +1,64 @@
 # syntax=docker/dockerfile:1
-# Pipeline application image — development version (finalised in Phase 10).
-# Python 3.12 + Java 21 (required by PySpark 4.x) on Debian slim.
-FROM python:3.12-slim
+# Pipeline application image: Python 3.12 + Java 21 (required by PySpark 4.x) on Debian slim.
+#
+# Targets:
+#   runtime (default, last stage) — application code only; what CI builds.
+#   dev     — adds requirements-dev.txt (pytest, ruff) and tests/; used by docker-compose.yml,
+#             which also bind-mounts the repository over /opt/project.
+# Both run as the non-root `app` user with ENTRYPOINT `python -m src.cli`.
+FROM python:3.12.14-slim-trixie AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    SPARK_S3A_JARS_DIR=/opt/spark-jars
+    JAVA_HOME=/usr/lib/jvm/java-21 \
+    SPARK_S3A_JARS_DIR=/opt/spark-jars \
+    LOCAL_LAKE_PATH=/opt/project/lake \
+    SOURCE_DATA_PATH=/opt/project/data/generated
 
+# Java 21 JRE; the arch-independent JAVA_HOME symlink keeps the image buildable on arm64.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openjdk-21-jre-headless procps \
+    && ln -s "/usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture)" "${JAVA_HOME}" \
     && rm -rf /var/lib/apt/lists/*
 
-# Spark s3a:// support (used from Phase 4 when STORAGE_MODE=s3). Versions must match the
-# Hadoop build inside PySpark 4.2.0 (hadoop-client 3.5.0 -> AWS SDK v2 bundle 2.35.4).
-# The SDK bundle is ~650 MB; build with --build-arg INSTALL_S3A_JARS=false for local-only use.
+# Spark s3a:// support (STORAGE_MODE=s3). Pinned, checksummed jars; build with
+# --build-arg INSTALL_S3A_JARS=false for a local-only image without the ~650 MB SDK bundle.
 ARG INSTALL_S3A_JARS=true
-RUN python - <<'EOF'
-import hashlib, os, pathlib, urllib.request
-
-if os.environ.get("INSTALL_S3A_JARS", "true") != "true":
-    raise SystemExit(0)
-maven = "https://repo1.maven.org/maven2"
-jars = {  # url -> sha1 published by Maven Central
-    f"{maven}/org/apache/hadoop/hadoop-aws/3.5.0/hadoop-aws-3.5.0.jar":
-        "9e594525d264c0db653c7f68da98b245f7d61ea5",
-    f"{maven}/software/amazon/awssdk/bundle/2.35.4/bundle-2.35.4.jar":
-        "7252265e3970b214708e68a8b74a8fa8c875af1e",
-    f"{maven}/software/amazon/s3/analyticsaccelerator/analyticsaccelerator-s3/1.3.1/analyticsaccelerator-s3-1.3.1.jar":
-        "6c9bd0f6c440c9a78e82d272f5f0252d942419f6",
-}
-target_dir = pathlib.Path(os.environ["SPARK_S3A_JARS_DIR"])
-target_dir.mkdir(parents=True, exist_ok=True)
-for url, expected in jars.items():
-    target = target_dir / url.rsplit("/", 1)[1]
-    urllib.request.urlretrieve(url, target)
-    digest = hashlib.sha1()
-    with target.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
-    if digest.hexdigest() != expected:
-        raise SystemExit(f"Checksum mismatch for {target.name}")
-    print(f"Installed {target.name}")
-EOF
+COPY docker/install_s3a_jars.py /tmp/install_s3a_jars.py
+RUN python /tmp/install_s3a_jars.py "${SPARK_S3A_JARS_DIR}" && rm /tmp/install_s3a_jars.py
 
 WORKDIR /opt/project
 
-COPY requirements.txt requirements-dev.txt ./
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
+
+# uid 1000 matches AIRFLOW_UID: both containers write the mounted lake/ and data/ folders.
+# The empty folders let the image also run without mounts (LOCAL_LAKE_PATH, SOURCE_DATA_PATH).
+RUN useradd --create-home --uid 1000 app \
+    && mkdir -p lake data/generated \
+    && chown -R app:app lake data
+
+# Code is owned by root and read-only for `app`; it only writes to mounted folders.
+COPY pyproject.toml ./
+COPY src/ src/
+COPY scripts/ scripts/
+COPY sql/ sql/
+
+USER app
+ENTRYPOINT ["python", "-m", "src.cli"]
+CMD ["--help"]
+
+
+FROM base AS dev
+
+USER root
+COPY requirements-dev.txt ./
 RUN pip install -r requirements-dev.txt
-
-COPY . .
-
-RUN useradd --create-home --uid 1000 app && chown -R app:app /opt/project
+COPY tests/ tests/
+COPY data/sample/ data/sample/
 USER app
 
-CMD ["python", "-m", "scripts.generate_data", "--help"]
+
+FROM base AS runtime

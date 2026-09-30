@@ -1,16 +1,45 @@
-.git
+# Build context for Dockerfile and docker/airflow/Dockerfile (spec 11 §9).
+# The Dockerfiles copy only what they need; this keeps secrets and bulky local
+# outputs out of the context entirely.
+
+# Secrets and credentials — never in an image
 .env
 .env.*
 !.env.example
-lake/
-data/generated/
+*.pem
+.aws/
 terraform/.terraform
+terraform/**/.terraform
 *.tfstate*
 *.tfvars
+tfplan
+
+# Version control, docs, and editor/tool state
+.git
+.gitignore
+.gitattributes
+docs/
+.claude/
+.idea/
+.vscode/
+
+# Data and runtime outputs (mounted at runtime)
+lake/
+data/generated/
+logs/
+airflow/logs/
+*.log
+spark-warehouse/
+metastore_db/
+
+# Python caches and environments
 **/__pycache__
+**/*.py[cod]
 .pytest_cache/
 .ruff_cache/
 .coverage
+coverage.xml
 htmlcov/
 .venv/
-docs/
+venv/
+*.egg-info/

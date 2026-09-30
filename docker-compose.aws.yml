@@ -1,0 +1,26 @@
+# AWS-mode override: gives the pipeline and Airflow containers read-only access to the
+# host's AWS CLI configuration. Credentials are mounted at runtime, never copied into an
+# image or written to .env (spec 11 §10).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.aws.yml run --rm pipeline --help
+#   docker compose -f docker-compose.yml -f docker-compose.aws.yml up -d
+#
+# Switching to AWS is configuration only (NFR-017): in .env set STORAGE_MODE=s3,
+# WAREHOUSE_TYPE=redshift, S3_BUCKET, REDSHIFT_* and AWS_PROFILE (a profile in ~/.aws).
+# The profile must hold credentials the SDKs can read from the files themselves (access
+# keys / temporary session keys, or credential_process); the mount is read-only, so
+# `aws sso login` token refreshes inside the containers are not supported.
+#
+# The files are mounted at /opt/aws and pointed to explicitly, because the Airflow
+# container's arbitrary uid has no fixed home directory.
+
+x-aws: &aws
+  environment:
+    AWS_CONFIG_FILE: /opt/aws/config
+    AWS_SHARED_CREDENTIALS_FILE: /opt/aws/credentials
+  volumes:
+    - ~/.aws:/opt/aws:ro
+
+services:
+  pipeline: *aws
+  airflow: *aws

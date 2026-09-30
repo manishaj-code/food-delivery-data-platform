@@ -1,6 +1,12 @@
 # Local development environment: pipeline container, local PostgreSQL warehouse (+ Airflow
-# metadata database), and Airflow 3. Finalised in Phase 10.
+# metadata database), and Airflow 3.
 # Credentials come from the untracked .env (copy .env.example); nothing secret lives here.
+#
+#   docker compose build                       # both images
+#   docker compose up -d                       # postgres + airflow-init + airflow (UI :8080)
+#   docker compose run --rm pipeline --help    # the pipeline CLI (python -m src.cli)
+#
+# AWS mode: add -f docker-compose.aws.yml (read-only ~/.aws mount), see that file.
 name: food-delivery
 
 x-project-env: &project-env
@@ -41,8 +47,13 @@ x-airflow-common: &airflow-common
       condition: service_healthy
 
 services:
+  # Run-only CLI container (ENTRYPOINT python -m src.cli): `docker compose run --rm pipeline
+  # <command>`. `docker compose up` just prints the CLI help and exits. The dev target adds
+  # pytest/ruff; the repository is bind-mounted so code changes need no rebuild.
   pipeline:
-    build: .
+    build:
+      context: .
+      target: dev
     image: food-delivery-pipeline:dev
     env_file:
       - path: .env
