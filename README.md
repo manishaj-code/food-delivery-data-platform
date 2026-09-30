@@ -81,4 +81,16 @@ then daily runs (2026-09-01, …). Unpausing the DAG also starts today's schedul
 - `docker build .` builds the production `runtime` target (application code only, no dev
   tools); `--build-arg INSTALL_S3A_JARS=false` skips the ~650 MB S3 connector jars.
 
+## CI/CD (GitHub Actions)
+
+- [`ci.yml`](.github/workflows/ci.yml) runs on every push and on pull requests to `main`,
+  with no AWS access and no secrets. It has four jobs:
+  - `lint-test`: ruff, then pytest with coverage against a PostgreSQL service container.
+  - `dag-integrity`: the DAG tests inside the Airflow image.
+  - `docker-build`: both images, a smoke test, and a non-root check.
+  - `terraform-validate`: fmt, init and validate.
+- [`deploy.yml`](.github/workflows/deploy.yml) is started manually: Terraform `plan`, or `plan`
+  then `apply` after approval on the `dev` environment. It signs in to AWS through GitHub
+  OIDC only; no AWS keys are stored in GitHub. See Phase 13 for the repository variables it needs.
+
 A small deterministic sample dataset (historical + 2026-09-01 + 2026-09-02) is committed in [`data/sample/`](data/sample/).

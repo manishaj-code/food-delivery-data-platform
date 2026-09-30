@@ -22,7 +22,7 @@ Phase 12 complete; AWS account with an admin-capable profile for the first apply
 Before writing resources: with the sandbox profile, confirm allowed actions — create S3 bucket, create IAM role, create OIDC provider, Redshift Serverless namespace/workgroup, Secrets Manager, CloudWatch — and session length. Set defaults of `create_pipeline_role`, `create_redshift_s3_role`, `create_github_oidc` accordingly; if Redshift Serverless is blocked, decide the provisioned fallback with the user (spec 09 §3.3.1).
 
 ### Task 1 — Provider and base
-`providers.tf` (required_version, aws ~> 5.x, default_tags), `main.tf` (locals: name prefix, account id via `aws_caller_identity`, default VPC/subnets data sources), `variables.tf` (with descriptions, types, defaults, validation: environment in [dev], CIDR not `0.0.0.0/0`), `outputs.tf`, `terraform.tfvars.example`.
+`providers.tf` (required_version, aws ~> 6.0, default_tags — created with `variables.tf` `environment`/`aws_region` and `.terraform.lock.hcl` in Phase 12; extend them), `main.tf` (locals: name prefix, account id via `aws_caller_identity`, default VPC/subnets data sources), `variables.tf` (with descriptions, types, defaults, validation: environment in [dev], CIDR not `0.0.0.0/0`), `outputs.tf`, `terraform.tfvars.example`.
 
 ### Task 2 — S3
 `s3.tf`: bucket, `aws_s3_bucket_public_access_block`, SSE-S3 encryption, ownership controls, TLS-only bucket policy, lifecycle rules (validated 7d, quarantine 90d, reports 365d, abort multipart 7d).

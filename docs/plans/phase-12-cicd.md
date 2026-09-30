@@ -44,6 +44,14 @@ On a throwaway branch, introduce a failing test and a lint error → CI red; rev
 .github/workflows/deploy.yml
 ```
 
+**As implemented:**
+
+- `ci.yml`: four jobs as specified (spec 10 §3). `lint-test` runs `pytest -m "not aws and not airflow"` with coverage (`fail_under = 80` from `pyproject.toml`) against a `postgres:16.10` service container, and uploads `coverage.xml` + JUnit XML. `dag-integrity` builds the Airflow image (without s3a jars, GHA layer cache) and runs `tests/unit/test_dag_integrity.py` inside it with the checkout mounted. The image needs no `.env` or database for this; checked locally with a plain `docker run`. `docker-build` is a matrix over both images: build (no push), smoke test (`--help` / `airflow version`), and a non-root uid check. `terraform-validate` runs fmt/init `-backend=false`/validate with Terraform 1.16.4.
+- There was no `terraform/` yet, so Phase 12 adds the minimal root that Phase 13 extends: `providers.tf` (Terraform ≥ 1.16, AWS provider `~> 6.0`, default tags), `variables.tf` (`environment`, `aws_region`), and `.terraform.lock.hcl` (AWS provider 6.66.0; linux/windows/darwin checksums). The AWS provider major moved from the spec's 5.x to the current 6.x (specs 01, 10 and plan 13 updated).
+- `deploy.yml`: manual `plan`/`apply` over OIDC (`id-token: write`), with repository variables `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, optional `TF_STATE_BUCKET` and `ALLOWED_CIDR_BLOCKS`. The S3 backend is added through a generated `backend_override.tf` only when `TF_STATE_BUCKET` is set; otherwise `apply` is skipped with a warning (A-12). `apply` runs in environment `dev` and re-plans before applying, so no plan artifact is shared. The plan job runs without an environment, so its OIDC `sub` is `ref:refs/heads/main`; spec 09 already allows that and spec 11 §5 now says so too.
+- Action versions (latest majors, checked 2026-09-30): checkout v7, setup-python v7, setup-java v6, upload-artifact v7, setup-buildx v4, build-push v7, setup-terraform v4, configure-aws-credentials v6. Both workflows pass `actionlint` 1.7.12 (with shellcheck), run via Docker; actionlint is not a project dependency.
+- Tasks 3–4 and the green-run validation need the GitHub repository (`food-delivery-data-platform`); see the notes below once it is pushed.
+
 ## Files To Modify
 
 `README.md` (CI badge + section draft), `pyproject.toml` (if CI-specific pytest options needed).

@@ -48,7 +48,7 @@ The development host is Windows. PySpark on native Windows needs Hadoop `winutil
 ### `ci.yml` — triggers: `push` (all branches), `pull_request` (to `main`)
 
 ```text
-job lint-test (ubuntu-latest, Python 3.12, Java 21 via actions/setup-java)
+job lint-test (ubuntu-24.04, Python 3.12, Java 21 Temurin via actions/setup-java)
   Checkout
    ↓
   Setup Python (pip cache)
@@ -57,23 +57,27 @@ job lint-test (ubuntu-latest, Python 3.12, Java 21 via actions/setup-java)
    ↓
   Lint: ruff check . && ruff format --check .
    ↓
-  Tests: pytest -m "not aws" --cov  (service container: postgres:16 for integration tests)
+  Tests: pytest -m "not aws and not airflow" --cov (fail under 80%)
+         (service container postgres:16.10 for integration tests)
    ↓
-  Upload coverage report artifact
+  Upload coverage.xml + JUnit report artifact
 
 job dag-integrity
-  Checkout → build/install Airflow (with constraints) → pytest tests/unit/test_dag_integrity.py
+  Checkout → buildx build docker/airflow/Dockerfile (INSTALL_S3A_JARS=false, GHA cache)
+  → docker run … python -m pytest tests/unit/test_dag_integrity.py (repository mounted)
 
-job docker-build (needs lint-test)
-  Checkout → docker/setup-buildx → build Dockerfile and docker/airflow/Dockerfile (no push)
+job docker-build (needs lint-test; matrix pipeline | airflow)
+  Checkout → docker/setup-buildx → build (no push, GHA cache) → smoke test
+  (pipeline: `--help`; airflow: `airflow version`) → assert the image user is not uid 0
 
 job terraform-validate (parallel)
-  Checkout → setup-terraform → terraform fmt -check -recursive → terraform init -backend=false → terraform validate
+  Checkout → setup-terraform 1.16.4 → terraform fmt -check -recursive → terraform init -backend=false → terraform validate
 ```
 
-- No AWS credentials in CI; S3 is mocked with moto; warehouse tests use the Postgres service container.
-- Concurrency group per branch cancels superseded runs.
-- Permissions: `contents: read`.
+- No AWS credentials in CI; S3 is mocked with moto; warehouse tests use the Postgres service container (throwaway password defined in the workflow — not a secret).
+- Concurrency group per ref cancels superseded runs.
+- Permissions: `contents: read`; checkout with `persist-credentials: false`.
+- Actions pinned to major version tags (`actions/checkout@v7`, `setup-python@v7`, `setup-java@v6`, `upload-artifact@v7`, `docker/setup-buildx-action@v4`, `docker/build-push-action@v7`, `hashicorp/setup-terraform@v4`, `aws-actions/configure-aws-credentials@v6`). Workflows pass `actionlint`.
 
 ### `deploy.yml` — trigger: `workflow_dispatch` (input `action`: `plan` | `apply`)
 
@@ -91,14 +95,17 @@ terraform plan -out=tfplan
 [apply only] environment "dev" (required reviewer) → terraform apply tfplan
 ```
 
-- Permissions: `id-token: write`, `contents: read`.
-- Non-secret inputs (`AWS_REGION`, role ARN, `allowed_cidr_blocks`) stored as GitHub repository/environment **variables**; nothing sensitive stored.
+- Permissions: `id-token: write`, `contents: read`. Concurrency group `deploy-dev` (never two runs against one state).
+- Non-secret inputs stored as GitHub repository **variables**: `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, optional `TF_STATE_BUCKET` (remote state, A-12) and `ALLOWED_CIDR_BLOCKS` (HCL list); nothing sensitive stored.
+- With `TF_STATE_BUCKET` set, the workflow writes `backend_override.tf` (`backend "s3" {}`) and passes bucket/key/region/`use_lockfile` via `-backend-config`; without it, `plan` uses runner-local state (a preview) and `apply` is skipped.
+- The `apply` job runs in the `dev` environment and re-plans there before applying (no plan file is passed between jobs, because workflow artifacts are readable by anyone with repository read access). The plan text is written to the job summary.
 
 ## 4. Terraform
 
 ```text
 terraform/
-├── providers.tf              # required_version, aws provider ~> 5.x, default_tags
+├── providers.tf              # required_version >= 1.16, aws provider ~> 6.0, default_tags
+├── .terraform.lock.hcl       # provider checksums (linux/windows/darwin), committed
 ├── main.tf                   # locals (name prefix, account id), data sources (default VPC/subnets)
 ├── variables.tf              # environment, aws_region, bucket_name, database_name, allowed_cidr_blocks,
 │                             # github_repository, redshift_base_capacity, redshift_usage_limit_rpu_hours

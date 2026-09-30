@@ -77,7 +77,7 @@ The `REDSHIFT_*` names (required by `project_details.md` §28) also point to the
 
 - IAM OIDC identity provider for `token.actions.githubusercontent.com` (Terraform, spec 09).
 - `deploy.yml` requests `id-token: write` and uses `aws-actions/configure-aws-credentials` with `role-to-assume`.
-- Trust policy conditions: `aud = sts.amazonaws.com`, `sub = repo:<owner>/<repo>:environment:dev` (apply) — no other repo/branch can assume it.
+- Trust policy conditions: `aud = sts.amazonaws.com`, `sub = repo:<owner>/<repo>:environment:dev` (apply job) or `repo:<owner>/<repo>:ref:refs/heads/main` (plan job, which runs without an environment; spec 09) — no other repo/branch can assume it.
 - `ci.yml` needs no AWS access at all.
 - Repository settings: no `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` secrets exist.
 

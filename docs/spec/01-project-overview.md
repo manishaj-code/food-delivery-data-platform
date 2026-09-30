@@ -104,7 +104,7 @@ The company needs a reliable, automated, daily batch data platform that:
 | Warehouse | Amazon Redshift Serverless (PostgreSQL 16 locally) | Star schema. |
 | Orchestration | Apache Airflow 3.x, LocalExecutor | PostgreSQL metadata DB. |
 | Containers | Docker, Docker Compose | Local development runtime. |
-| IaC | Terraform ≥ 1.6, AWS provider 5.x | `terraform/`. |
+| IaC | Terraform 1.16 (≥ 1.16, < 2), AWS provider 6.x | `terraform/`. |
 | CI/CD | GitHub Actions | `ci.yml`, `deploy.yml`, OIDC to AWS. |
 | Testing | pytest, moto (S3 mocking) | Custom DQ framework instead of Great Expectations. |
 | Linting | ruff (lint + format check) | Single tool. |
