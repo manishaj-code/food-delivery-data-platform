@@ -1,0 +1,152 @@
+# Manual Terraform deployment to the dev environment (spec 10 §3, spec 11 §5, FR-114).
+#
+# Authenticates with GitHub OIDC only: no AWS keys are stored in GitHub. Needs the
+# repository variables AWS_DEPLOY_ROLE_ARN and AWS_REGION (from the Terraform outputs,
+# Phase 13). `apply` also needs the remote state bucket TF_STATE_BUCKET (assumption
+# A-12) and an approval on the `dev` environment; without the bucket only `plan` runs.
+# In the sandbox account without an OIDC provider (create_github_oidc = false), this
+# workflow is not run: Terraform is applied from the developer machine (spec 09 §3.3.1).
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "plan, or plan then apply (needs TF_STATE_BUCKET and dev approval)"
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+permissions:
+  contents: read
+  id-token: write  # OIDC token for aws-actions/configure-aws-credentials
+
+# Never two Terraform runs against the same state.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+env:
+  TERRAFORM_VERSION: "1.16.4"
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  # Non-secret Terraform inputs (repository variables); unset ones keep their defaults.
+  TF_VAR_environment: dev
+  TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+  TF_VAR_github_repository: ${{ github.repository }}
+  ALLOWED_CIDR_BLOCKS: ${{ vars.ALLOWED_CIDR_BLOCKS }}  # HCL list, e.g. ["203.0.113.7/32"]
+  ACTION: ${{ inputs.action }}
+
+jobs:
+  plan:
+    name: terraform-plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - name: Check repository variables
+        working-directory: .
+        run: |
+          if [ -z "$AWS_DEPLOY_ROLE_ARN" ] || [ -z "$AWS_REGION" ]; then
+            echo "::error::Set the repository variables AWS_DEPLOY_ROLE_ARN and AWS_REGION"
+            exit 1
+          fi
+          if [ "$ACTION" = apply ] && [ -z "$TF_STATE_BUCKET" ]; then
+            echo "::warning::TF_STATE_BUCKET is not set: running plan only (A-12)"
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-plan-${{ github.run_id }}
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Init
+        run: |
+          # An empty TF_VAR_ would not parse as a list: only pass it when set.
+          if [ -n "$ALLOWED_CIDR_BLOCKS" ]; then
+            echo "TF_VAR_allowed_cidr_blocks=$ALLOWED_CIDR_BLOCKS" >> "$GITHUB_ENV"  # for plan/apply
+          fi
+          if [ -n "$TF_STATE_BUCKET" ]; then
+            printf 'terraform {\n  backend "s3" {}\n}\n' > backend_override.tf
+            terraform init \
+              -backend-config="bucket=$TF_STATE_BUCKET" \
+              -backend-config="key=food-delivery/dev/terraform.tfstate" \
+              -backend-config="region=$AWS_REGION" \
+              -backend-config="use_lockfile=true" \
+              -backend-config="encrypt=true"
+          else
+            terraform init  # local state on the runner: the plan is a preview only
+          fi
+
+      - name: Plan
+        run: terraform plan -out=tfplan -no-color
+
+      - name: Plan summary
+        run: |
+          {
+            echo '### terraform plan'
+            echo '```'
+            terraform show -no-color tfplan
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Re-plans against the remote state inside the approved environment and applies that
+  # plan (no plan file is passed between jobs: artifacts are readable by the repository).
+  apply:
+    name: terraform-apply
+    needs: plan
+    if: ${{ inputs.action == 'apply' && vars.TF_STATE_BUCKET != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: dev  # required reviewer; the deploy role trusts this environment
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-apply-${{ github.run_id }}
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Init
+        run: |
+          # An empty TF_VAR_ would not parse as a list: only pass it when set.
+          if [ -n "$ALLOWED_CIDR_BLOCKS" ]; then
+            echo "TF_VAR_allowed_cidr_blocks=$ALLOWED_CIDR_BLOCKS" >> "$GITHUB_ENV"  # for plan/apply
+          fi
+          printf 'terraform {\n  backend "s3" {}\n}\n' > backend_override.tf
+          terraform init \
+            -backend-config="bucket=$TF_STATE_BUCKET" \
+            -backend-config="key=food-delivery/dev/terraform.tfstate" \
+            -backend-config="region=$AWS_REGION" \
+            -backend-config="use_lockfile=true" \
+            -backend-config="encrypt=true"
+
+      - name: Plan
+        run: terraform plan -out=tfplan -no-color
+
+      - name: Apply
+        run: terraform apply -no-color tfplan

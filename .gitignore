@@ -11,6 +11,8 @@
 *.tfvars
 !terraform.tfvars.example
 tfplan
+# written by deploy.yml when the remote backend is configured
+backend_override.tf
 .terraform.lock.hcl.bak
 
 # Data and lake outputs (generated locally)
@@ -33,6 +35,7 @@ venv/
 .ruff_cache/
 .coverage
 coverage.xml
+pytest-report.xml
 htmlcov/
 
 # Spark

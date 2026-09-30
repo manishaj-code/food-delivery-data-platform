@@ -1,0 +1,193 @@
+# Quality gates for every push and pull request (spec 10 §3, FR-110 – FR-113).
+# No AWS access and no repository secrets: S3 is mocked with moto and the warehouse
+# tests use a throwaway PostgreSQL service container.
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A newer commit on the same branch/PR cancels the superseded run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  JAVA_VERSION: "21"
+  TERRAFORM_VERSION: "1.16.4"
+
+jobs:
+  lint-test:
+    name: lint-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.10
+        env:
+          POSTGRES_DB: warehouse
+          POSTGRES_USER: warehouse_user
+          # Ephemeral CI database only; not a real secret.
+          POSTGRES_PASSWORD: ci-only-not-a-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U warehouse_user -d warehouse"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      WAREHOUSE_TYPE: postgres
+      REDSHIFT_HOST: localhost
+      REDSHIFT_PORT: "5432"
+      REDSHIFT_DATABASE: warehouse
+      REDSHIFT_USER: warehouse_user
+      REDSHIFT_PASSWORD: ci-only-not-a-secret
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      # PySpark needs a JVM (same major version as the images).
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check --output-format=github .
+
+      - name: Format
+        run: ruff format --check .
+
+      # DAG structure tests (marker airflow) run in the dag-integrity job.
+      - name: Tests
+        run: >-
+          pytest -m "not aws and not airflow"
+          --cov=src --cov-report=term --cov-report=xml
+          --junitxml=pytest-report.xml
+
+      - name: Upload test and coverage reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: |
+            coverage.xml
+            pytest-report.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Airflow is only installed in the Airflow image: build it and run the DAG tests there.
+  dag-integrity:
+    name: dag-integrity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build the Airflow image (without the s3a jars)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/airflow/Dockerfile
+          build-args: INSTALL_S3A_JARS=false
+          tags: food-delivery-airflow:ci
+          load: true
+          cache-from: type=gha,scope=airflow-dag-integrity
+          cache-to: type=gha,mode=max,scope=airflow-dag-integrity
+
+      - name: DAG integrity tests
+        run: >-
+          docker run --rm -v "$PWD:/opt/project" -w /opt/project
+          -e PYTHONDONTWRITEBYTECODE=1
+          food-delivery-airflow:ci
+          python -m pytest -p no:cacheprovider tests/unit/test_dag_integrity.py
+
+  docker-build:
+    name: docker-build
+    needs: lint-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: pipeline
+            dockerfile: Dockerfile
+            smoke: --help  # the CLI entrypoint (AC-051)
+          - image: airflow
+            dockerfile: docker/airflow/Dockerfile
+            smoke: airflow version
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Built, loaded for the smoke test, never pushed.
+      - name: Build ${{ matrix.image }} image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          tags: food-delivery-${{ matrix.image }}:ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Smoke test and non-root check
+        env:
+          IMAGE: food-delivery-${{ matrix.image }}:ci
+          SMOKE: ${{ matrix.smoke }}
+        run: |
+          # shellcheck disable=SC2086  # SMOKE holds several arguments
+          docker run --rm "$IMAGE" $SMOKE
+          uid=$(docker run --rm --entrypoint id "$IMAGE" -u)
+          echo "Runs as uid $uid"
+          test "$uid" != 0
+
+  terraform-validate:
+    name: terraform-validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Format
+        run: terraform fmt -check -recursive
+
+      - name: Init (no backend, no AWS credentials)
+        run: terraform init -backend=false -input=false
+
+      - name: Validate
+        run: terraform validate
