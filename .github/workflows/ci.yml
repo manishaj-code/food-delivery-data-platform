@@ -191,3 +191,7 @@ jobs:
 
       - name: Validate
         run: terraform validate
+
+      # Plans each create_* flag combination against a mocked AWS provider.
+      - name: Test
+        run: terraform test
