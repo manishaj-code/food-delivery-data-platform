@@ -123,7 +123,7 @@ jobs:
           python -m pytest -p no:cacheprovider tests/unit/test_dag_integrity.py
 
   docker-build:
-    name: docker-build
+    name: docker-build (${{ matrix.image }})  # required checks use these names
     needs: lint-test
     runs-on: ubuntu-24.04
     timeout-minutes: 45

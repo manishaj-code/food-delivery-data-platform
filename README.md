@@ -1,5 +1,7 @@
 # food-delivery-data-platform
 
+[![CI](https://github.com/manishaj-code/food-delivery-data-platform/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/manishaj-code/food-delivery-data-platform/actions/workflows/ci.yml)
+
 > An automated end-to-end data engineering platform for processing food delivery orders, customers, restaurants, payments, and delivery data using Python, PySpark, AWS S3, Amazon Redshift, Airflow, Docker, Terraform, and GitHub Actions.
 
 **Status:** Phase 11 of 15 complete — synthetic data, raw ingestion, local/S3 lake storage, PySpark data quality and transformations, verified processed Parquet layer, star-schema warehouse (Redshift DDL + local PostgreSQL) with idempotent upserts and post-load checks, 15 analytics queries and 6 Power BI views, Airflow 3 orchestration and a CLI, hardened Docker images and Compose environment, and an automated test suite (unit, data quality, integration, end-to-end; 96% coverage). The full README is written in Phase 15.
