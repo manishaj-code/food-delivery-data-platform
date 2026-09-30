@@ -61,7 +61,7 @@ tests/unit/test_dag_integrity.py, test_pipeline_steps.py
 - Airflow image: Java 21 copied from `eclipse-temurin:21-jre` (bookworm base has no Java 21 package); boto3 left at Airflow's constrained version (our pin conflicted with the Amazon provider's `aiobotocore`); `pip check` at build. The s3a jars are not in this image yet (Phase 10, needed for AWS mode).
 - Airflow runs as uid 1000 (`AIRFLOW_UID`), the pipeline image's `app` user: with uid 50000 it could not write the uid-1000 folders in the mounted `lake/`/`data/`.
 - The CLI's `generate-data` and `run-analytics` delegate to the existing entry points; `run-pipeline` runs the DAG's task list in-process without retries and calls `record_failure` on the first failure.
-- Tests: `tests/unit/test_pipeline_steps.py`, `tests/unit/test_cli.py`, `tests/unit/test_dag_integrity.py` (structure tests run in the Airflow image; the orchestration-only check everywhere), `tests/integration/test_cli_pipeline.py` (historical → daily → broken-header run on the sample data; required log messages, audit rows, exit codes).
+- Tests: `tests/unit/test_pipeline_steps.py`, `tests/unit/test_cli.py`, `tests/unit/test_dag_integrity.py` (structure tests run in the Airflow image; the orchestration-only check everywhere), `tests/integration/test_cli_pipeline.py` (renamed `test_pipeline_e2e.py` in Phase 11; historical → daily → broken-header run on the sample data; required log messages, audit rows, exit codes).
 
 ## Files To Modify
 

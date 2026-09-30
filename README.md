@@ -2,7 +2,7 @@
 
 > An automated end-to-end data engineering platform for processing food delivery orders, customers, restaurants, payments, and delivery data using Python, PySpark, AWS S3, Amazon Redshift, Airflow, Docker, Terraform, and GitHub Actions.
 
-**Status:** Phase 10 of 15 complete — synthetic data, raw ingestion, local/S3 lake storage, PySpark data quality and transformations, verified processed Parquet layer, star-schema warehouse (Redshift DDL + local PostgreSQL) with idempotent upserts and post-load checks, 15 analytics queries and 6 Power BI views, Airflow 3 orchestration and a CLI, hardened Docker images and Compose environment. The full README is written in Phase 15.
+**Status:** Phase 11 of 15 complete — synthetic data, raw ingestion, local/S3 lake storage, PySpark data quality and transformations, verified processed Parquet layer, star-schema warehouse (Redshift DDL + local PostgreSQL) with idempotent upserts and post-load checks, 15 analytics queries and 6 Power BI views, Airflow 3 orchestration and a CLI, hardened Docker images and Compose environment, and an automated test suite (unit, data quality, integration, end-to-end; 96% coverage). The full README is written in Phase 15.
 
 ## Documentation
 
@@ -51,8 +51,10 @@ docker compose run --rm pipeline init-warehouse
 docker compose run --rm pipeline run-pipeline --run-date 2026-08-31 --load-type historical
 docker compose run --rm pipeline run-pipeline --run-date 2026-09-01
 
-# Lint and tests (override the entrypoint)
+# Lint and tests (override the entrypoint); integration tests use the postgres service
 docker compose run --rm --entrypoint sh pipeline -c "ruff check . && ruff format --check . && pytest"
+docker compose run --rm --entrypoint pytest pipeline -m "not aws" --cov=src   # + coverage
+docker compose run --rm --entrypoint pytest pipeline -m unit                  # fast subset
 ```
 
 ### Airflow
